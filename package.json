@@ -1,0 +1,22 @@
+{
+  "name": "cookinglab-serverless-aws",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "Monorepo para proyecto académico de arquitectura serverless en AWS - CookingLab",
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "lint": "pnpm --recursive run lint",
+    "cdk:synth": "pnpm --filter infra cdk synth",
+    "cdk:deploy": "pnpm --filter infra cdk deploy --all",
+    "cdk:destroy": "pnpm --filter infra cdk destroy --all",
+    "dev:front": "pnpm --filter frontend dev"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "typescript": "^5.3.3"
+  }
+}

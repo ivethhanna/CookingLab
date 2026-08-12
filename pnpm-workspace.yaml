@@ -1,0 +1,6 @@
+packages:
+  - 'infra'
+  - 'backend'
+  - 'frontend'
+allowBuilds:
+  esbuild: true
