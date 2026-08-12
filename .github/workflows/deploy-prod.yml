@@ -33,18 +33,28 @@ jobs:
       - name: Build backend
         run: pnpm --filter backend run build
 
-      - name: Build frontend
-        run: pnpm --filter frontend run build
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Deploy prod
+      - name: Deploy prod infrastructure
         working-directory: infra
-        run: npx cdk deploy --all --context stage=prod --require-approval never --outputs-file outputs.json
+        run: npx cdk deploy cookinglab-prod-data cookinglab-prod-auth cookinglab-prod-events cookinglab-prod-api cookinglab-prod-observability cookinglab-prod-cicd --context stage=prod --require-approval never --outputs-file outputs.json
+
+      - name: Extract frontend env vars
+        working-directory: infra
+        env:
+          STAGE: prod
+        run: node scripts/write-frontend-env.js
+
+      - name: Build frontend
+        run: pnpm --filter frontend run build
+
+      - name: Deploy prod frontend
+        working-directory: infra
+        run: npx cdk deploy cookinglab-prod-front --context stage=prod --require-approval never --outputs-file outputs-front.json
 
       - name: Extract API URL from outputs
         working-directory: infra
