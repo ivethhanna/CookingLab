@@ -46,10 +46,11 @@ jobs:
         working-directory: infra
         run: npx cdk deploy --all --context stage=prod --require-approval never --outputs-file outputs.json
 
-      - name: Read API URL
+      - name: Extract API URL from outputs
         working-directory: infra
-        run: |
-          node -e "const fs = require('fs'); const outputs = JSON.parse(fs.readFileSync('outputs.json', 'utf8')); const apiUrl = outputs['cookinglab-prod-api']?.ApiUrl; if (!apiUrl) throw new Error('ApiUrl output not found for cookinglab-prod-api'); fs.appendFileSync(process.env.GITHUB_ENV, `API_URL=${apiUrl}\n`);"
+        env:
+          API_STACK_NAME: cookinglab-prod-api
+        run: node scripts/write-api-url.js
 
       - name: Smoke test healthz
         run: |
