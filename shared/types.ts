@@ -8,6 +8,61 @@ export type WorkshopModality = 'presencial' | 'virtual';
 export type WorkshopStatus = 'scheduled' | 'cancelled' | 'finished';
 export type UserRole = 'student' | 'admin';
 
+export const WORKSHOP_CATEGORIES = [
+  'Pastelería',
+  'Panadería',
+  'Cocina Italiana',
+  'Asados / Parrilla',
+  'Coctelería',
+  'Cocina Internacional',
+  'Repostería',
+  'Cocina Saludable',
+  'Técnicas Básicas',
+  'Vinos y Maridaje',
+] as const;
+
+export type WorkshopCategory = (typeof WORKSHOP_CATEGORIES)[number];
+
+const WORKSHOP_CATEGORY_ALIASES: Record<WorkshopCategory, string[]> = {
+  Pastelería: ['Pastelería', 'Pasteleria', 'pastelería', 'pasteleria'],
+  Panadería: ['Panadería', 'Panaderia', 'panadería', 'panaderia'],
+  'Cocina Italiana': ['Cocina Italiana', 'cocina italiana', 'Italiana', 'italiana'],
+  'Asados / Parrilla': ['Asados / Parrilla', 'Asados', 'Parrilla', 'asados', 'parrilla'],
+  Coctelería: ['Coctelería', 'Cocteleria', 'coctelería', 'cocteleria'],
+  'Cocina Internacional': ['Cocina Internacional', 'cocina internacional', 'Internacional', 'internacional'],
+  Repostería: ['Repostería', 'Reposteria', 'repostería', 'reposteria'],
+  'Cocina Saludable': ['Cocina Saludable', 'cocina saludable', 'Saludable', 'saludable'],
+  'Técnicas Básicas': ['Técnicas Básicas', 'Tecnicas Basicas', 'técnicas básicas', 'tecnicas basicas'],
+  'Vinos y Maridaje': ['Vinos y Maridaje', 'vinos y maridaje', 'Maridaje', 'maridaje'],
+};
+
+function normalizeCategoryKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeWorkshopCategory(value: string): WorkshopCategory | undefined {
+  const normalizedValue = normalizeCategoryKey(value);
+
+  return WORKSHOP_CATEGORIES.find((category) =>
+    WORKSHOP_CATEGORY_ALIASES[category].some((alias) => normalizeCategoryKey(alias) === normalizedValue)
+  );
+}
+
+export function getWorkshopCategoryQueryValues(value: string): string[] {
+  const category = normalizeWorkshopCategory(value);
+
+  if (!category) {
+    return [value];
+  }
+
+  return Array.from(new Set([category, ...WORKSHOP_CATEGORY_ALIASES[category]]));
+}
+
 /**
  * Entidad Workshop (Taller de Cocina)
  * DynamoDB Keys:

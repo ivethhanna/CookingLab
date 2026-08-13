@@ -6,7 +6,7 @@ import {
   QueryCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { Registration, Workshop, WorkshopInput } from '../../../shared/types';
+import { getWorkshopCategoryQueryValues, Registration, Workshop, WorkshopInput } from '../../../shared/types';
 
 const client = new DynamoDBClient({});
 
@@ -89,16 +89,66 @@ export async function getWorkshop(id: string): Promise<Workshop | undefined> {
 export async function listWorkshops(
   limit?: number,
   nextToken?: string,
-  category?: string
+  category?: string,
+  includeCancelled = false
 ): Promise<{ items: Workshop[]; nextToken?: string }> {
+  const statusFilter = includeCancelled
+    ? {}
+    : {
+        FilterExpression: '#status <> :cancelled',
+        ExpressionAttributeNames: {
+          '#status': 'status',
+        },
+      };
+
+  if (category) {
+    const categoryValues = getWorkshopCategoryQueryValues(category);
+    const results = await Promise.all(
+      categoryValues.map((categoryValue) =>
+        docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            IndexName: 'GSI2',
+            KeyConditionExpression: 'GSI2PK = :pk',
+            ExpressionAttributeValues: {
+              ':pk': makeKeys.workshopGsi2(categoryValue).GSI2PK,
+              ...(includeCancelled ? {} : { ':cancelled': 'cancelled' }),
+            },
+            ...statusFilter,
+            Limit: limit,
+            ScanIndexForward: true,
+          })
+        )
+      )
+    );
+
+    const uniqueItems = new Map<string, Workshop>();
+
+    for (const item of results.flatMap((result) => result.Items ?? [])) {
+      const workshop = toWorkshop(item);
+
+      if (workshop) {
+        uniqueItems.set(workshop.id, workshop);
+      }
+    }
+
+    const items = Array.from(uniqueItems.values()).sort((a, b) => a.startAt.localeCompare(b.startAt));
+
+    return {
+      items: limit ? items.slice(0, limit) : items,
+    };
+  }
+
   const result = await docClient.send(
     new QueryCommand({
       TableName: TABLE_NAME,
-      IndexName: category ? 'GSI2' : 'GSI1',
-      KeyConditionExpression: category ? 'GSI2PK = :pk' : 'GSI1PK = :pk',
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :pk',
       ExpressionAttributeValues: {
-        ':pk': category ? makeKeys.workshopGsi2(category).GSI2PK : makeKeys.workshopGsi1().GSI1PK,
+        ':pk': makeKeys.workshopGsi1().GSI1PK,
+        ...(includeCancelled ? {} : { ':cancelled': 'cancelled' }),
       },
+      ...statusFilter,
       Limit: limit,
       ExclusiveStartKey: decodeNextToken(nextToken),
       ScanIndexForward: true,

@@ -19,7 +19,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const result = await listWorkshops(
       limit,
       event.queryStringParameters?.nextToken,
-      event.queryStringParameters?.category
+      event.queryStringParameters?.category,
+      event.queryStringParameters?.includeCancelled === 'true'
     );
 
     return ok(result);

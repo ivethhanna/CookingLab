@@ -1,10 +1,24 @@
 import { z } from 'zod';
-import { WorkshopInput } from '../../../shared/types';
+import { normalizeWorkshopCategory, WorkshopInput } from '../../../shared/types';
+
+const workshopCategorySchema = z.string().min(1, 'La categoria es requerida').transform((value, ctx) => {
+  const category = normalizeWorkshopCategory(value);
+
+  if (!category) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'La categoria no esta permitida.',
+    });
+    return z.NEVER;
+  }
+
+  return category;
+});
 
 const workshopBaseSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   description: z.string().min(10, 'La descripcion debe tener al menos 10 caracteres'),
-  category: z.string().min(1, 'La categoria es requerida'),
+  category: workshopCategorySchema,
   location: z.string().min(1, 'La ubicacion es requerida'),
   startAt: z.string().datetime({ message: 'startAt debe ser un ISO 8601 valido' }),
   endAt: z.string().datetime({ message: 'endAt debe ser un ISO 8601 valido' }),
