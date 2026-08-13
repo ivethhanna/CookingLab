@@ -1,28 +1,78 @@
-# Guía de Operación y Monitoreo - CookingLab
+# Guia de Operacion y Monitoreo - CookingLab
 
-## Observabilidad y Métricas
+## Observabilidad
 
-La infraestructura cuenta con métricas consolidadas e inspección distribuida mediante **AWS CloudWatch** y **AWS X-Ray**.
+La observabilidad real se define en `ObservabilityStack`:
 
----
+- Dashboard: `cookinglab-overview-<stage>`.
+- Alarma API 5XX: `cookinglab-api-5xx-errors-<stage>`, umbral mayor a 5 errores 5XX en 5 minutos.
+- Alarmas por Lambda: errores mayores a 3 en 5 minutos y duracion p99 mayor a 5 segundos.
+- Alarma agregada de throttles Lambda.
+- Graficas de API TPS, latencia P95, errores 4XX/5XX, capacidad consumida de DynamoDB y duracion promedio Lambda.
 
-## 1. CloudWatch Dashboard & Alarmas
-- **Dashboard Name**: `cookinglab-metrics-<stage>`
-- **Alertas Principales**:
-  - `cookinglab-api-5xx-errors-<stage>`: Se activa si ocurren más de 5 errores HTTP 5xx en un período de 5 minutos en API Gateway.
-  - **DynamoDB Throttling**: Monitoreo de solicitudes rechazadas en GSI1 y GSI2.
+Las alarmas notifican al SNS Topic de notificaciones del stack de eventos.
 
----
+## DLQ de Eventos
 
-## 2. Inspección de Eventos Fallidos (DLQ en SQS)
-Si una notificación o handler asíncrono en EventBridge falla tras varios re-intentos, el mensaje se redirige a la cola **FIFO Dead Letter Queue (DLQ)**:
-- **Queue Name**: `cookinglab-dlq-<stage>.fifo`
-- **Procedimiento de Inspección**:
-  1. Ir a la consola SQS en AWS.
-  2. Seleccionar la cola `cookinglab-dlq-dev.fifo`.
-  3. Ejecutar "Poll for messages" para auditar los eventos fallidos.
+`EventsStack` crea una SQS DLQ:
 
----
+```text
+cookinglab-notifications-dlq-<stage>
+```
 
-## 3. Trazabilidad con AWS X-Ray
-Todas las funciones Lambda y API Gateway tienen habilitado el rastreo (tracing). Permite visualizar el mapa de servicio completo de una petición HTTP desde API Gateway hasta DynamoDB.
+Para revisar fallos:
+
+1. Abrir la consola SQS.
+2. Seleccionar `cookinglab-notifications-dlq-dev` o el stage correspondiente.
+3. Ejecutar polling de mensajes.
+4. Revisar el evento fallido y los logs de la Lambda de notificacion asociada.
+
+## Cognito y Usuarios
+
+El User Pool tiene grupos `admin` y `student`. Las rutas admin validan el grupo `admin` leyendo el claim `cognito:groups`.
+
+Para crear usuarios de prueba desde CLI:
+
+```bash
+aws cognito-idp admin-create-user \
+  --user-pool-id USER_POOL_ID \
+  --username evaluador@example.com \
+  --user-attributes Name=email,Value=evaluador@example.com Name=name,Value=Evaluador
+```
+
+Los usuarios creados manualmente suelen quedar en `FORCE_CHANGE_PASSWORD`. El frontend soporta ese flujo con el formulario de nueva contrasena. Si se van a compartir credenciales con un tercero, por ejemplo un evaluador, se puede establecer una contrasena permanente:
+
+```bash
+aws cognito-idp admin-set-user-password \
+  --user-pool-id USER_POOL_ID \
+  --username evaluador@example.com \
+  --password 'Password123' \
+  --permanent
+```
+
+Rotar o eliminar esa cuenta antes de la entrega final si ya no se necesita.
+
+## Backup y Restore
+
+En `prod`, la tabla DynamoDB habilita point-in-time recovery. En `dev`, la tabla usa `RemovalPolicy.DESTROY` y no habilita PITR para reducir costos.
+
+Para restauraciones en prod, usar Point-in-time recovery desde la consola DynamoDB y validar la tabla restaurada antes de redirigir trafico o copiar datos.
+
+## Deploy y Smoke Test
+
+El deploy normal ocurre por GitHub Actions. Dev se activa por push a `dev`; prod por tags `v*` y environment `production`.
+
+El smoke test usa el output `ApiUrl` del ApiStack y valida:
+
+```text
+GET /healthz
+```
+
+La respuesta esperada es HTTP 200 con un JSON que incluye `status: "ok"` y `timestamp`.
+
+## Troubleshooting
+
+- `CannotFindAsset` para `frontend/dist`: verificar que el workflow cree el placeholder antes del primer `cdk deploy`.
+- Frontend con Cognito "not configured": verificar que `frontend/.env.production` se genere antes de `pnpm --filter frontend run build`.
+- `Cannot find name 'process'` en infra: revisar `infra/tsconfig.json`, que debe incluir `types: ["node"]`.
+- Login de usuario manual exige nueva contrasena: completar el challenge en la UI o usar `admin-set-user-password --permanent` para cuentas temporales de prueba.

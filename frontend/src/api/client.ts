@@ -2,6 +2,8 @@ import { Registration, Workshop, WorkshopInput } from '@shared/types';
 import { getCurrentSession } from '../auth/cognito';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_CONFIG_ERROR =
+  'Configura VITE_API_URL en frontend/.env con la URL del API antes de cargar talleres.';
 
 type ListWorkshopsParams = {
   limit?: number;
@@ -15,6 +17,10 @@ type ListWorkshopsResponse = {
 };
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error(API_CONFIG_ERROR);
+  }
+
   const idToken = await getCurrentSession();
   const headers = new Headers(options.headers);
 
@@ -32,10 +38,21 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
+  let data: unknown;
+
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    throw new Error('El API no devolvio JSON. Revisa que VITE_API_URL apunte al backend correcto.');
+  }
 
   if (!response.ok) {
-    throw new Error(data?.title || `HTTP ${response.status}`);
+    const title =
+      data && typeof data === 'object' && 'title' in data && typeof data.title === 'string'
+        ? data.title
+        : `HTTP ${response.status}`;
+
+    throw new Error(title);
   }
 
   return data as T;

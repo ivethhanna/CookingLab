@@ -48,6 +48,15 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       });
     }
 
+    if (workshop.status !== 'scheduled') {
+      return problem({
+        type: 'https://cookinglab.io/errors/workshop-not-open',
+        title: 'Workshop not open',
+        status: 400,
+        detail: 'El taller no esta disponible para nuevas inscripciones.',
+      });
+    }
+
     if (workshop.registeredCount >= workshop.capacity) {
       return problem({
         type: 'https://cookinglab.io/errors/capacity-exceeded',

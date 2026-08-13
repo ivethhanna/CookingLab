@@ -1,0 +1,65 @@
+{
+  "name": "CookingLab Workshop Platform Design System",
+  "version": "1.0.0",
+  "colors": {
+    "background": {
+      "value": "#FBF3E7",
+      "description": "Fondo principal de secciones claras (crema cálido)"
+    },
+    "backgroundDark": {
+      "value": "#2A1B12",
+      "description": "Fondo de secciones destacadas (marrón chocolate)"
+    },
+    "textPrimary": {
+      "value": "#231710",
+      "description": "Texto principal sobre fondo claro (marrón casi negro)"
+    },
+    "textInverse": {
+      "value": "#FBF3E7",
+      "description": "Texto sobre fondo oscuro (crema)"
+    },
+    "textMuted": {
+      "value": "#6E5D53",
+      "description": "Texto secundario / suavizado sobre fondo claro"
+    },
+    "accent": {
+      "value": "#E8632C",
+      "description": "Botones primarios, badges, íconos y énfasis (naranja quemado)"
+    },
+    "accentHover": {
+      "value": "#D14E1B",
+      "description": "Estado hover del botón primario"
+    },
+    "border": {
+      "value": "#231710",
+      "description": "Bordes de tarjetas, botones outline, inputs (1-2px negro/marrón)"
+    },
+    "status": {
+      "scheduled": "#10B981",
+      "cancelled": "#E11D48",
+      "finished": "#D97706"
+    }
+  },
+  "typography": {
+    "fontHeading": "'Playfair Display', Georgia, serif",
+    "fontBody": "'DM Sans', 'Inter', -apple-system, sans-serif",
+    "headingTransform": "uppercase",
+    "headingTracking": "0.08em"
+  },
+  "radii": {
+    "button": "999px",
+    "card": "6px",
+    "input": "4px",
+    "badge": "999px"
+  },
+  "borders": {
+    "thin": "1px solid #231710",
+    "medium": "2px solid #231710",
+    "accent": "1.5px solid #E8632C"
+  },
+  "shadows": {
+    "retro": "3px 3px 0px #231710",
+    "retroHover": "5px 5px 0px #231710",
+    "soft": "0 4px 16px rgba(35, 23, 16, 0.08)"
+  }
+}

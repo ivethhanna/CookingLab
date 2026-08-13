@@ -5,7 +5,7 @@
 
 export type WorkshopLevel = 'basico' | 'intermedio' | 'avanzado';
 export type WorkshopModality = 'presencial' | 'virtual';
-export type WorkshopStatus = 'scheduled' | 'cancelled';
+export type WorkshopStatus = 'scheduled' | 'cancelled' | 'finished';
 export type UserRole = 'student' | 'admin';
 
 /**

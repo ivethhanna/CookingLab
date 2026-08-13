@@ -1,107 +1,81 @@
-# Arquitectura — CookingLab
+# Arquitectura - CookingLab
 
-## 1. Introducción
+CookingLab es una aplicacion serverless para publicar talleres de cocina, permitir inscripciones y enviar notificaciones basadas en eventos. La infraestructura real esta definida con AWS CDK v2 en `infra/` y se divide en 7 stacks:
 
-**CookingLab** es una plataforma serverless en AWS para la gestión de
-talleres de cocina y gastronomía. Permite a administradores (chefs e
-instructores) publicar talleres, y a estudiantes explorarlos, inscribirse y
-recibir notificaciones y recordatorios automáticos antes de cada sesión.
+1. `DataStack`: tabla DynamoDB single-table con GSI1 y GSI2.
+2. `AuthStack`: Cognito User Pool, User Pool Client y grupos `admin`/`student`.
+3. `EventsStack`: EventBridge custom bus, reglas, Lambdas de notificacion, SNS Topic y SQS DLQ.
+4. `ApiStack`: API Gateway REST, Cognito authorizer y Lambdas HTTP.
+5. `FrontStack`: S3 privado, CloudFront, WAF, OAC y deploy de `frontend/dist`.
+6. `ObservabilityStack`: dashboard y alarmas CloudWatch con acciones SNS.
+7. `CicdStack`: rol IAM asumible por GitHub Actions mediante OIDC.
 
-Este documento describe la arquitectura de referencia del sistema, las
-decisiones técnicas tomadas y su justificación, y los mecanismos de
-seguridad, observabilidad y gobernanza de costos aplicados.
-
-## 2. Arquitectura de referencia (alto nivel)
-
-El flujo de una petición típica es el siguiente:
-
-1. El usuario llega a **CloudFront**, que tiene **WAF** delante filtrando
-   tráfico malicioso (reglas rate-based y managed rules de SQLi/XSS).
-2. CloudFront decide, según el path de la petición:
-   - Si es una ruta de la SPA → sirve el **front estático desde S3** (bucket
-     privado, accesible solo vía Origin Access Control).
-   - Si la ruta empieza con `/api/*` → la reenvía a **API Gateway**.
-3. Si la ruta requiere autenticación (crear, editar o borrar talleres),
-   API Gateway aplica un **Cognito JWT Authorizer** que valida el token antes
-   de invocar la Lambda correspondiente. Las rutas públicas (listar talleres,
-   ver detalle) no pasan por el authorizer.
-4. La **Lambda** invocada ejecuta la lógica de negocio y lee/escribe en
-   **DynamoDB** (tabla única).
+## Vista General
 
 ```mermaid
 flowchart TD
     U[Usuario] --> CF[CloudFront + WAF]
-    CF --> S3[S3 - front estático]
-    CF --> AG[API Gateway]
-    CG[Cognito] -.valida JWT.-> AG
-    AG --> L[Lambda]
-    L --> DDB[(DynamoDB)]
+    CF --> S3[S3 privado: SPA React]
+    CF -->|/api/*| AG[API Gateway REST]
+    COG[Cognito User Pool] -.JWT authorizer.-> AG
+    AG --> L[Lambda handlers]
+    L --> DDB[(DynamoDB single-table)]
+    L --> EB[EventBridge custom bus]
+    EB --> NL[Lambda notificaciones]
+    NL --> SNS[SNS Topic]
+    EB -.fallos.-> DLQ[(SQS DLQ)]
 ```
 
-## 3. Arquitectura de eventos y notificaciones
+CloudFront sirve la SPA desde S3 y reenvia `/api/*` hacia API Gateway con el stage correspondiente. El bucket del frontend no es publico; CloudFront accede mediante Origin Access Control. El WAF de CloudFront incluye una regla rate-based y managed rule sets comunes y SQLi.
 
-Este flujo es **asíncrono** y desacoplado del anterior: una vez que la
-Lambda de API termina de escribir en DynamoDB, no espera a que se envíen las
-notificaciones — solo publica un evento y responde al usuario.
-
-1. La Lambda de API publica eventos de dominio (`WORKSHOP_CREATED`,
-   `STUDENT_REGISTERED`) en un bus de **EventBridge**.
-2. Una regla de EventBridge invoca una **Lambda de notificación**, que
-   publica el mensaje en **SNS/SES**. Si el envío falla, el evento cae en una
-   **SQS DLQ** para reintentos.
-3. Por separado, **EventBridge Scheduler** corre periódicamente (p. ej. cada
-   hora), consulta DynamoDB vía **GSI1** (talleres ordenados por fecha de
-   inicio) y dispara recordatorios a los inscritos de talleres que comienzan
-   en las próximas 24 horas.
+## Eventos
 
 ```mermaid
 flowchart TD
-    L1[Lambda API] -->|publica evento| EB[EventBridge]
-    EB --> L2[Lambda notificación]
-    L2 --> SNS[SNS / SES]
-    L2 -.falla.-> DLQ[(SQS DLQ)]
-    SCH[EventBridge Scheduler] --> L3[Lambda recordatorio]
-    L3 -->|consulta GSI1 por fecha| DDB[(DynamoDB)]
+    CREATE[POST /workshops] -->|WORKSHOP_CREATED| EB[EventBridge]
+    REGISTER[POST /workshops/{id}/register] -->|STUDENT_REGISTERED| EB
+    EB --> OC[onWorkshopCreated Lambda]
+    EB --> OS[onStudentRegistered Lambda]
+    OC --> SNS[SNS Topic]
+    OS --> SNS
+    SCH[EventBridge schedule cada 1h] --> R[reminder Lambda]
+    R --> DDB[(DynamoDB)]
+    R --> SNS
 ```
 
-## 4. Decisiones de arquitectura
+Los eventos de dominio reales son `WORKSHOP_CREATED` y `STUDENT_REGISTERED`, definidos en `shared/types.ts`. Las Lambdas de notificacion publican en SNS. La regla de recordatorios corre cada hora, consulta talleres por GSI1 y publica recordatorios para talleres que comienzan en menos de 24 horas.
 
-| Decisión | Justificación | Alternativas consideradas |
-|---|---|---|
-| **DynamoDB single-table design** | Acceso O(1) por PK/SK, sin joins; los access patterns (listar por fecha, filtrar por categoría) se resuelven con GSIs sin duplicar lógica de negocio. | Multi-tabla DynamoDB; base relacional (Aurora Serverless v2). |
-| **API Gateway REST** (no HTTP API) | Soporta *Request Validator* nativo y *Usage Plans*/API Keys, requisitos explícitos del proyecto. | HTTP API (más barato pero sin validator nativo ni usage plans). |
-| **Eventos desacoplados vía EventBridge** | Si falla el envío de una notificación, no afecta la respuesta al usuario ni bloquea la inscripción al taller. Facilita agregar nuevos consumidores sin tocar el handler original. | Publicar en SNS directamente desde el handler de registro. |
-| **CloudFront con dos orígenes** (S3 + API Gateway) bajo un mismo dominio | Evita problemas de CORS entre front y API; un solo certificado ACM y un solo WAF cubren todo el tráfico. | Dominios separados para front y API. |
-| **Cognito JWT Authorizer nativo de API Gateway** | Menos código repetido; API Gateway rechaza requests no autorizados antes de invocar Lambda, ahorrando invocaciones. | Validar el token JWT a mano dentro de cada Lambda. |
+## Decisiones
 
-## 5. Seguridad
+| Decision | Estado real | Justificacion |
+| --- | --- | --- |
+| DynamoDB single-table | Implementado en `DataStack` y `backend/src/lib/dynamo.ts` | Modela talleres e inscripciones con PK/SK y permite listados por fecha/categoria con GSI1/GSI2. |
+| API Gateway REST | Implementado | Expone `/healthz`, `/workshops`, `/workshops/{id}` y `/workshops/{id}/register`. |
+| Cognito JWT Authorizer | Implementado para rutas protegidas | API Gateway valida JWT antes de Lambdas de escritura. Los permisos admin se verifican leyendo `cognito:groups`. |
+| EventBridge + SNS + DLQ | Implementado | Desacopla notificaciones del flujo HTTP y permite reintentos/DLQ. |
+| Frontend por CloudFront + S3 privado | Implementado | Distribucion HTTPS, SPA fallback e invalidacion despues de `BucketDeployment`. |
+| WAF en CloudFront | Implementado | Regla por tasa, AWSManagedRulesCommonRuleSet y AWSManagedRulesSQLiRuleSet. |
+| Observabilidad CloudWatch | Implementado | Dashboard, alarmas API 5XX, errores/duracion/throttles Lambda y capacidad DynamoDB. |
+| CI/CD con OIDC | Implementado | GitHub Actions asume un rol IAM sin guardar access keys en GitHub. |
 
-- **WAF** en CloudFront: reglas rate-based + managed rules de SQLi/XSS.
-- **IAM least-privilege**: cada Lambda tiene una policy explícita, sin
-  wildcards (`*`), limitada a las acciones y recursos que necesita.
-- **Secrets Manager** para credenciales externas (no aplica si se usa SES,
-  que no requiere credenciales SMTP separadas).
-- **CORS** restringido al dominio de CloudFront (no `*` en producción).
-- **S3**: bucket del front privado, acceso únicamente vía Origin Access
-  Control (OAC) desde CloudFront.
-- **API Gateway**: throttling por stage, *Request Validator* activo, access
-  logs habilitados.
+## CI/CD
 
-## 6. Observabilidad
+El pipeline real usa GitHub Actions:
 
-- **CloudWatch Logs** por función, con retención de 30 días en `dev` y 90
-  días en `prod`.
-- **Alarms** sobre errores 5XX en la API, duración/errores/throttles en
-  Lambda.
-- **X-Ray** activado end-to-end (API Gateway + Lambda + SDK) para
-  trazabilidad de requests.
-- **Dashboard** con TPS, latencia P95, tasa de errores y consumo de
-  lectura/escritura de DynamoDB.
+- `ci.yml`: corre en PR hacia `dev` o `main`; instala dependencias, lint, build de backend/frontend/infra y `cdk synth`.
+- `deploy-dev.yml`: corre en push a `dev`; asume el rol `AWS_DEPLOY_ROLE_ARN` via OIDC y despliega dev.
+- `deploy-prod.yml`: corre con tags `v*` y usa el environment `production`.
 
-## 7. Gobernanza de costos
+No se almacenan Access Keys de AWS en GitHub. El unico secreto requerido para el pipeline es `AWS_DEPLOY_ROLE_ARN`, que apunta al output `GitHubActionsRoleArn` del `CicdStack`.
 
-- **Tagging** obligatorio en todos los recursos: `Project=CookingLab`,
-  `Env=dev|prod`.
-- **AWS Budgets** con alertas por correo ante umbrales de gasto.
-- **DynamoDB en modo on-demand** para minimizar costo fijo en el entorno de
-  desarrollo (sin necesidad de aprovisionar RCUs/WCUs).
+## Seguridad
+
+- Cognito maneja registro, confirmacion, login y grupos `admin`/`student`.
+- El frontend soporta el challenge `NEW_PASSWORD_REQUIRED` para usuarios creados manualmente en Cognito.
+- Las Lambdas usan permisos grant de CDK sobre DynamoDB, EventBridge y SNS.
+- CORS se configura inicialmente como `*` en el codigo Lambda, y `FrontStack` actualiza `ALLOWED_ORIGIN` en las Lambdas de API con el dominio real de CloudFront mediante un Custom Resource.
+- `CicdStack` usa OIDC de GitHub y `AdministratorAccess` como atajo academico; para produccion real deberia reducirse a permisos minimos de despliegue.
+
+## Gobernanza
+
+El codigo actual usa nombres consistentes por stage (`cookinglab-<stage>-...`) y `RemovalPolicy.DESTROY` en dev para DynamoDB/S3/Cognito. No hay tagging automatico ni AWS Budget definidos en CDK; si existen budgets o tags de cuenta, fueron configurados fuera del repositorio y deben mantenerse como control operativo externo.

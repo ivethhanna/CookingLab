@@ -27,6 +27,10 @@ export class NewPasswordRequiredError extends Error {
 let userPool: CognitoUserPool | null = null;
 let currentUser: AuthUser | null = null;
 
+function hasCognitoConfig(): boolean {
+  return Boolean(import.meta.env.VITE_USER_POOL_ID && import.meta.env.VITE_USER_POOL_CLIENT_ID);
+}
+
 export function initCognito(): CognitoUserPool {
   if (userPool) {
     return userPool;
@@ -144,6 +148,10 @@ export function signOut(): void {
 export function getCurrentSession(): Promise<string | null> {
   if (currentUser?.idToken) {
     return Promise.resolve(currentUser.idToken);
+  }
+
+  if (!hasCognitoConfig()) {
+    return Promise.resolve(null);
   }
 
   const user = initCognito().getCurrentUser();

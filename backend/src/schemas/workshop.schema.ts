@@ -8,7 +8,7 @@ const workshopBaseSchema = z.object({
   location: z.string().min(1, 'La ubicacion es requerida'),
   startAt: z.string().datetime({ message: 'startAt debe ser un ISO 8601 valido' }),
   endAt: z.string().datetime({ message: 'endAt debe ser un ISO 8601 valido' }),
-  status: z.enum(['scheduled', 'cancelled']),
+  status: z.enum(['scheduled', 'cancelled', 'finished']),
   capacity: z.number().int().positive('La capacidad debe ser un numero entero positivo'),
   instructor: z.string().min(1, 'El instructor es requerido'),
   level: z.enum(['basico', 'intermedio', 'avanzado']),

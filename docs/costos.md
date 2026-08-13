@@ -1,26 +1,34 @@
-# Estimación de Costos y Free Tier - CookingLab
+# Costos - CookingLab
 
-## Modelo de Costos Serverless (Pay-per-use)
+Esta estimacion describe el entorno `dev` con trafico bajo, tipico de un proyecto academico. Los valores son aproximados y dependen de region, Free Tier vigente, transferencia real y volumen de logs. No incluye impuestos.
 
-La arquitectura de CookingLab fue diseñada para maximizar el uso de la **Capa Gratuita de AWS (AWS Free Tier)** y minimizar costos operativos durante entornos académicos o de desarrollo.
+## Estimacion mensual para dev
 
----
+| Servicio | Modelo de precio | Estimacion USD/mes |
+| --- | --- | ---: |
+| S3 frontend | Pago por uso: almacenamiento, requests y transferencia hacia CloudFront | 0.00 - 0.50 |
+| CloudFront | Pago por uso: transferencia y requests | 0.00 - 1.00 |
+| API Gateway REST | Pago por request | 0.00 - 1.00 |
+| Lambda | Pago por invocacion y GB-segundo | 0.00 - 0.50 |
+| DynamoDB on-demand | Pago por request y almacenamiento | 0.00 - 1.00 |
+| Cognito | Pago por usuarios activos mensuales despues del free tier | 0.00 |
+| WAF | Costo fijo por Web ACL/reglas + requests; es el principal costo base | 6.00 - 7.00 |
+| SNS | Pago por publish/entrega | 0.00 - 0.50 |
+| EventBridge | Pago por eventos custom | 0.00 - 0.50 |
+| CloudWatch | Pago por logs, metricas/alarmas/dashboard fuera de free tier | 0.00 - 2.00 |
 
-## Desglose por Servicio AWS
+Para trafico bajo, el costo esperado de dev esta dominado por WAF. Sin WAF, el entorno puede quedar cerca de cero si el uso permanece dentro de Free Tier; con WAF activo, esperar aproximadamente 6-7 USD/mes como costo base.
 
-| Servicio AWS | Modelo de Cobro | Estimación en Free Tier / Dev |
-| :--- | :--- | :--- |
-| **AWS Lambda** | $0.20 por 1M de solicitudes + GB-segundos | **$0.00** (Incluye 1M peticiones/mes y 3.2M segundos de cómputo) |
-| **Amazon DynamoDB** | Pay-per-request (On-Demand) | **$0.00** (Incluye 25 GB de almacenamiento y 25 WCU/RCU gratis) |
-| **Amazon API Gateway** | $3.50 por millón de llamadas | **$0.00** (Incluye 1M llamadas/mes gratis el primer año) |
-| **Amazon Cognito** | Basado en MAUs (Monthly Active Users) | **$0.00** (Primeros 50,000 MAUs son 100% gratuitos) |
-| **Amazon EventBridge** | $1.00 por millón de eventos | **$0.00** (Todos los eventos custom son gratis en Free Tier) |
-| **Amazon S3** | $0.023 por GB almacenado | **$0.00** (Incluye 5 GB de almacenamiento estándar gratis) |
-| **Amazon CloudFront** | $0.085 por GB transferido | **$0.00** (Incluye 1 TB de transferencia de salida gratis/mes) |
-| **AWS CloudWatch** | Métricas y Dashboards | **$0.00** (3 dashboards y 10 alarmas sin costo) |
+## Como bajar costos
 
----
+- Apagar o retirar WAF cuando no se esten tomando evidencias activamente.
+- Ejecutar `cdk destroy --all --context stage=dev` cuando no se este trabajando en dev.
+- Reducir volumen y retencion de logs de CloudWatch si el trafico de pruebas genera muchos logs.
+- Mantener DynamoDB en modo on-demand para evitar capacidad aprovisionada ociosa.
+- Eliminar distribuciones CloudFront, buckets y tablas dev que ya no se usen.
 
-## Recomendaciones para Optimización de Costos
-1. **Entorno Dev**: El parámetro `RemovalPolicy.DESTROY` destruye automáticamente buckets S3 y tablas DynamoDB al ejecutar `cdk destroy` para evitar sorpresas en la facturación.
-2. **Capacidad DynamoDB**: Mantener la facturación en modo `PAY_PER_REQUEST` (On-Demand) para pagar exclusivamente por las lecturas/escrituras efectuadas.
+## Gobernanza aplicada
+
+El codigo actual aplica nombres por stage (`cookinglab-dev-*`, `cookinglab-prod-*`) y usa `RemovalPolicy.DESTROY` en dev para recursos persistentes como S3, DynamoDB y Cognito. En prod, DynamoDB y S3 usan `RETAIN`.
+
+No hay tagging automatico `Project=CookingLab` / `Env=dev|prod` ni AWS Budget definidos en CDK en el estado actual del repositorio. Si el presupuesto con alertas por email ya existe en la cuenta, esta configurado fuera del codigo y no se documentan montos reales de la cuenta en este repositorio. Como mejora recomendada, agregar tags globales en `infra/bin/app.ts` con `cdk.Tags.of(app).add(...)` y definir o documentar el AWS Budget operativo.

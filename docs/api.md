@@ -1,49 +1,77 @@
-# Especificacion OpenAPI - CookingLab
+# API - CookingLab
 
-Esta especificacion documenta la API REST de CookingLab para gestionar talleres de cocina, inscripciones y acceso protegido con Cognito. La arquitectura objetivo es API Gateway + Lambda + DynamoDB + Cognito, con errores en formato RFC 7807.
+La API real esta implementada en `backend/src/handlers` y expuesta por `ApiStack` como API Gateway REST. Las rutas publicas no usan authorizer; las rutas protegidas usan Cognito JWT y, para administracion, validan el grupo `admin` en el claim `cognito:groups`.
 
 ```yaml
 openapi: 3.0.3
 info:
   title: CookingLab REST API
   version: 1.0.0
-  description: API REST para la gestion de talleres de cocina en AWS.
+  description: API REST para talleres, inscripciones y health checks de CookingLab.
 servers:
-  - url: https://api.cookinglab.example.com
-    description: Produccion
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/{stage}
+    variables:
+      apiId:
+        default: example
+      region:
+        default: us-east-1
+      stage:
+        default: dev
 tags:
+  - name: Health
   - name: Workshops
-    description: Gestion y consulta de talleres
   - name: Registrations
-    description: Inscripciones de usuarios autenticados
 paths:
-  /workshops:
+  /healthz:
     get:
-      tags:
-        - Workshops
-      summary: Listar talleres
-      description: Endpoint publico que lista talleres, con paginacion basada en LastEvaluatedKey de DynamoDB y filtro opcional por categoria usando GSI2.
-      operationId: listWorkshops
-      parameters:
-        - $ref: "#/components/parameters/Limit"
-        - $ref: "#/components/parameters/NextToken"
-        - $ref: "#/components/parameters/Category"
+      tags: [Health]
+      summary: Health check publico
+      description: Endpoint sin autenticacion usado por el smoke test del pipeline.
       responses:
         "200":
-          description: Lista paginada de talleres
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
+          description: Servicio disponible
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - items
+                required: [status, timestamp]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+  /workshops:
+    get:
+      tags: [Workshops]
+      summary: Listar talleres
+      description: Lista talleres por fecha usando GSI1 o filtra por categoria usando GSI2.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Entero positivo opcional.
+        - name: nextToken
+          in: query
+          schema:
+            type: string
+          description: Token base64 derivado de LastEvaluatedKey.
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Categoria para filtrar talleres.
+      responses:
+        "200":
+          description: Lista paginada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
                 properties:
                   items:
                     type: array
@@ -51,37 +79,14 @@ paths:
                       $ref: "#/components/schemas/Workshop"
                   nextToken:
                     type: string
-                    description: Token opaco para continuar la paginacion.
-              examples:
-                success:
-                  summary: Talleres disponibles
-                  value:
-                    items:
-                      - id: workshop_001
-                        name: Pasta artesanal italiana
-                        description: Tecnicas base para preparar pasta fresca y salsas clasicas.
-                        category: Italiana
-                        location: Sede Chapinero
-                        instructor: Chef Laura Gomez
-                        level: intermedio
-                        modality: presencial
-                        certificateOffered: true
-                        ingredientsIncluded: true
-                        price: 180000
-                        startAt: "2026-09-15T18:00:00Z"
-                        endAt: "2026-09-15T21:00:00Z"
-                        status: scheduled
-                        capacity: 16
-                        registeredCount: 7
-                        createdAt: "2026-08-01T12:00:00Z"
-                        updatedAt: "2026-08-01T12:00:00Z"
-                    nextToken: eyJQSyI6IldPUktTSE9QI3dvcmtzaG9wXzAwMSJ9
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
     post:
-      tags:
-        - Workshops
+      tags: [Workshops]
       summary: Crear taller
-      description: Crea un taller. Requiere JWT de Cognito y rol admin mediante Cognito Groups.
-      operationId: createWorkshop
+      description: Requiere JWT Cognito y grupo admin.
       security:
         - CognitoAuth: []
       requestBody:
@@ -90,119 +95,42 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/WorkshopInput"
-            examples:
-              createWorkshop:
-                summary: Nuevo taller
-                value:
-                  name: Reposteria francesa
-                  description: Aprende tecnicas de macaronage, masas y rellenos clasicos.
-                  category: Reposteria
-                  location: Aula virtual
-                  instructor: Chef Pierre Martin
-                  level: intermedio
-                  modality: virtual
-                  certificateOffered: true
-                  ingredientsIncluded: false
-                  price: 120000
-                  startAt: "2026-10-01T15:00:00Z"
-                  endAt: "2026-10-01T18:00:00Z"
-                  status: scheduled
-                  capacity: 20
       responses:
         "201":
-          description: Taller creado
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
+          description: Taller creado.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Workshop"
-              examples:
-                created:
-                  summary: Taller creado
-                  value:
-                    id: workshop_002
-                    name: Reposteria francesa
-                    description: Aprende tecnicas de macaronage, masas y rellenos clasicos.
-                    category: Reposteria
-                    location: Aula virtual
-                    instructor: Chef Pierre Martin
-                    level: intermedio
-                    modality: virtual
-                    certificateOffered: true
-                    ingredientsIncluded: false
-                    price: 120000
-                    startAt: "2026-10-01T15:00:00Z"
-                    endAt: "2026-10-01T18:00:00Z"
-                    status: scheduled
-                    capacity: 20
-                    registeredCount: 0
-                    createdAt: "2026-08-10T14:00:00Z"
-                    updatedAt: "2026-08-10T14:00:00Z"
         "400":
           $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /workshops/{id}:
     get:
-      tags:
-        - Workshops
-      summary: Obtener taller por ID
-      description: Endpoint publico que obtiene el detalle de un taller.
-      operationId: getWorkshopById
+      tags: [Workshops]
+      summary: Obtener taller
       parameters:
         - $ref: "#/components/parameters/WorkshopId"
       responses:
         "200":
-          description: Taller encontrado
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
+          description: Taller encontrado.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Workshop"
-              examples:
-                success:
-                  summary: Taller encontrado
-                  value:
-                    id: workshop_001
-                    name: Pasta artesanal italiana
-                    description: Tecnicas base para preparar pasta fresca y salsas clasicas.
-                    category: Italiana
-                    location: Sede Chapinero
-                    instructor: Chef Laura Gomez
-                    level: intermedio
-                    modality: presencial
-                    certificateOffered: true
-                    ingredientsIncluded: true
-                    price: 180000
-                    startAt: "2026-09-15T18:00:00Z"
-                    endAt: "2026-09-15T21:00:00Z"
-                    status: scheduled
-                    capacity: 16
-                    registeredCount: 7
-                    createdAt: "2026-08-01T12:00:00Z"
-                    updatedAt: "2026-08-01T12:00:00Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     put:
-      tags:
-        - Workshops
+      tags: [Workshops]
       summary: Actualizar taller
-      description: Actualiza parcialmente un taller existente. Requiere JWT de Cognito y rol admin mediante Cognito Groups.
-      operationId: updateWorkshop
+      description: Requiere JWT Cognito y grupo admin.
       security:
         - CognitoAuth: []
       parameters:
@@ -213,316 +141,126 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/WorkshopUpdateInput"
-            examples:
-              updateWorkshop:
-                summary: Cambio parcial
-                value:
-                  capacity: 24
-                  price: 150000
       responses:
         "200":
-          description: Taller actualizado
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
+          description: Taller actualizado.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Workshop"
-              examples:
-                updated:
-                  summary: Taller actualizado
-                  value:
-                    id: workshop_001
-                    name: Pasta artesanal italiana
-                    description: Tecnicas base para preparar pasta fresca y salsas clasicas.
-                    category: Italiana
-                    location: Sede Chapinero
-                    instructor: Chef Laura Gomez
-                    level: intermedio
-                    modality: presencial
-                    certificateOffered: true
-                    ingredientsIncluded: true
-                    price: 150000
-                    startAt: "2026-09-15T18:00:00Z"
-                    endAt: "2026-09-15T21:00:00Z"
-                    status: scheduled
-                    capacity: 24
-                    registeredCount: 7
-                    createdAt: "2026-08-01T12:00:00Z"
-                    updatedAt: "2026-08-10T15:30:00Z"
         "400":
           $ref: "#/components/responses/ValidationError"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
-      tags:
-        - Workshops
+      tags: [Workshops]
       summary: Cancelar taller
-      description: Hace soft-delete del taller cambiando status a "cancelled"; no ejecuta DeleteItem real para conservar el historico de inscripciones, segun docs/modelo-datos.md.
-      operationId: deleteWorkshop
+      description: Requiere JWT Cognito y grupo admin. No borra el item; cambia `status` a `cancelled`.
       security:
         - CognitoAuth: []
       parameters:
         - $ref: "#/components/parameters/WorkshopId"
       responses:
         "204":
-          description: Taller cancelado sin body de respuesta
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Taller cancelado sin body.
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /workshops/{id}/register:
     post:
-      tags:
-        - Registrations
+      tags: [Registrations]
       summary: Inscribirse a un taller
-      description: Inscribe al usuario autenticado en el taller indicado. No recibe body; el userId se obtiene del claim "sub" del JWT. La idempotencia se apoya en ConditionalCheckFailedException de DynamoDB y el cupo se valida con registeredCount.
-      operationId: registerWorkshop
+      description: Requiere JWT Cognito. El usuario se obtiene del claim `sub`; no requiere body.
       security:
         - CognitoAuth: []
       parameters:
         - $ref: "#/components/parameters/WorkshopId"
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              maxProperties: 0
-            examples:
-              emptyBody:
-                summary: Sin body
-                value: {}
       responses:
         "201":
-          description: Inscripcion creada
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
+          description: Inscripcion creada.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Registration"
-              examples:
-                created:
-                  summary: Inscripcion creada
-                  value:
-                    workshopId: workshop_001
-                    userId: user_123
-                    registeredAt: "2026-08-10T16:00:00Z"
         "400":
-          description: El taller alcanzo su capacidad maxima
-          headers:
-            Access-Control-Allow-Origin:
-              $ref: "#/components/headers/AccessControlAllowOrigin"
-            Access-Control-Allow-Credentials:
-              $ref: "#/components/headers/AccessControlAllowCredentials"
-            Access-Control-Allow-Headers:
-              $ref: "#/components/headers/AccessControlAllowHeaders"
+          description: Id faltante, taller no abierto a inscripciones o cupo agotado.
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
-              examples:
-                capacityReached:
-                  summary: Cupo agotado
-                  value:
-                    type: https://cookinglab.example.com/problems/capacity-reached
-                    title: Workshop capacity reached
-                    status: 400
-                    detail: El taller ya alcanzo su cupo disponible.
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/AlreadyRegistered"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   securitySchemes:
     CognitoAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT emitido por Amazon Cognito.
-  headers:
-    AccessControlAllowOrigin:
-      description: Origen permitido por CORS.
-      schema:
-        type: string
-        example: "*"
-    AccessControlAllowCredentials:
-      description: Indica si se permiten credenciales CORS.
-      schema:
-        type: string
-        example: "true"
-    AccessControlAllowHeaders:
-      description: Headers permitidos por CORS.
-      schema:
-        type: string
-        example: Content-Type,Authorization
   parameters:
     WorkshopId:
       name: id
       in: path
       required: true
-      description: Identificador del taller.
       schema:
         type: string
-      example: workshop_001
-    Limit:
-      name: limit
-      in: query
-      required: false
-      description: Cantidad maxima de talleres a retornar.
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-      example: 20
-    NextToken:
-      name: nextToken
-      in: query
-      required: false
-      description: Token opaco de paginacion derivado de LastEvaluatedKey de DynamoDB.
-      schema:
-        type: string
-      example: eyJQSyI6IldPUktTSE9QI3dvcmtzaG9wXzAwMSJ9
-    Category:
-      name: category
-      in: query
-      required: false
-      description: Categoria usada para filtrar talleres mediante GSI2.
-      schema:
-        type: string
-      example: Italiana
   responses:
+    BadRequest:
+      description: Solicitud invalida.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
     ValidationError:
-      description: Error de validacion del request body segun el esquema Zod de backend/src/schemas/workshop.schema.ts.
-      headers:
-        Access-Control-Allow-Origin:
-          $ref: "#/components/headers/AccessControlAllowOrigin"
-        Access-Control-Allow-Credentials:
-          $ref: "#/components/headers/AccessControlAllowCredentials"
-        Access-Control-Allow-Headers:
-          $ref: "#/components/headers/AccessControlAllowHeaders"
+      description: Error de validacion Zod.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-          examples:
-            validation:
-              summary: Validacion fallida
-              value:
-                type: https://cookinglab.example.com/problems/validation-error
-                title: Validation error
-                status: 400
-                detail: El cuerpo de la solicitud no cumple el esquema esperado.
     Unauthorized:
-      description: No se envio un token valido.
-      headers:
-        Access-Control-Allow-Origin:
-          $ref: "#/components/headers/AccessControlAllowOrigin"
-        Access-Control-Allow-Credentials:
-          $ref: "#/components/headers/AccessControlAllowCredentials"
-        Access-Control-Allow-Headers:
-          $ref: "#/components/headers/AccessControlAllowHeaders"
+      description: JWT ausente o invalido.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-          examples:
-            unauthorized:
-              summary: Token ausente o invalido
-              value:
-                type: https://cookinglab.example.com/problems/unauthorized
-                title: Unauthorized
-                status: 401
-                detail: Se requiere un JWT valido de Cognito.
     Forbidden:
-      description: El usuario autenticado no tiene permisos suficientes.
-      headers:
-        Access-Control-Allow-Origin:
-          $ref: "#/components/headers/AccessControlAllowOrigin"
-        Access-Control-Allow-Credentials:
-          $ref: "#/components/headers/AccessControlAllowCredentials"
-        Access-Control-Allow-Headers:
-          $ref: "#/components/headers/AccessControlAllowHeaders"
+      description: Usuario autenticado sin grupo admin.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-          examples:
-            forbidden:
-              summary: Usuario no admin
-              value:
-                type: https://cookinglab.example.com/problems/forbidden
-                title: Forbidden
-                status: 403
-                detail: Se requiere rol admin para ejecutar esta operacion.
     NotFound:
-      description: El taller solicitado no existe.
-      headers:
-        Access-Control-Allow-Origin:
-          $ref: "#/components/headers/AccessControlAllowOrigin"
-        Access-Control-Allow-Credentials:
-          $ref: "#/components/headers/AccessControlAllowCredentials"
-        Access-Control-Allow-Headers:
-          $ref: "#/components/headers/AccessControlAllowHeaders"
+      description: Taller no encontrado.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-          examples:
-            notFound:
-              summary: Taller no encontrado
-              value:
-                type: https://cookinglab.example.com/problems/workshop-not-found
-                title: Workshop not found
-                status: 404
-                detail: No existe un taller con el id indicado.
     AlreadyRegistered:
-      description: El usuario ya estaba inscrito en el taller.
-      headers:
-        Access-Control-Allow-Origin:
-          $ref: "#/components/headers/AccessControlAllowOrigin"
-        Access-Control-Allow-Credentials:
-          $ref: "#/components/headers/AccessControlAllowCredentials"
-        Access-Control-Allow-Headers:
-          $ref: "#/components/headers/AccessControlAllowHeaders"
+      description: El usuario ya esta inscrito.
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/Problem"
-          examples:
-            alreadyRegistered:
-              summary: Inscripcion duplicada
-              value:
-                type: https://cookinglab.example.com/problems/already-registered
-                title: Student already registered
-                status: 409
-                detail: El usuario autenticado ya esta inscrito en este taller.
+    InternalError:
+      description: Error interno.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
   schemas:
     Workshop:
       type: object
@@ -532,271 +270,150 @@ components:
         - description
         - category
         - location
-        - instructor
-        - level
-        - modality
-        - certificateOffered
-        - ingredientsIncluded
-        - price
         - startAt
         - endAt
         - status
         - capacity
         - registeredCount
-        - createdAt
-        - updatedAt
-      properties:
-        id:
-          type: string
-          example: workshop_001
-        name:
-          type: string
-          example: Pasta artesanal italiana
-        description:
-          type: string
-          example: Tecnicas base para preparar pasta fresca y salsas clasicas.
-        category:
-          type: string
-          example: Italiana
-        location:
-          type: string
-          example: Sede Chapinero
-        instructor:
-          type: string
-          example: Chef Laura Gomez
-        level:
-          $ref: "#/components/schemas/WorkshopLevel"
-        modality:
-          $ref: "#/components/schemas/WorkshopModality"
-        certificateOffered:
-          type: boolean
-          example: true
-        ingredientsIncluded:
-          type: boolean
-          example: true
-        price:
-          type: number
-          format: float
-          minimum: 0
-          example: 180000
-        startAt:
-          type: string
-          format: date-time
-          example: "2026-09-15T18:00:00Z"
-        endAt:
-          type: string
-          format: date-time
-          example: "2026-09-15T21:00:00Z"
-        status:
-          $ref: "#/components/schemas/WorkshopStatus"
-        capacity:
-          type: integer
-          minimum: 1
-          example: 16
-        registeredCount:
-          type: integer
-          minimum: 0
-          description: Conteo de inscritos actualizado atomicamente con UpdateItem ADD registeredCount :inc.
-          example: 7
-        createdAt:
-          type: string
-          format: date-time
-          example: "2026-08-01T12:00:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          example: "2026-08-01T12:00:00Z"
-    WorkshopInput:
-      type: object
-      required:
-        - name
-        - description
-        - category
-        - location
         - instructor
         - level
         - modality
         - certificateOffered
         - ingredientsIncluded
         - price
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string }
+        name: { type: string, minLength: 3 }
+        description: { type: string, minLength: 10 }
+        category: { type: string }
+        location: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        status:
+          $ref: "#/components/schemas/WorkshopStatus"
+        capacity: { type: integer, minimum: 1 }
+        registeredCount: { type: integer, minimum: 0 }
+        instructor: { type: string }
+        level:
+          $ref: "#/components/schemas/WorkshopLevel"
+        modality:
+          $ref: "#/components/schemas/WorkshopModality"
+        certificateOffered: { type: boolean }
+        ingredientsIncluded: { type: boolean }
+        price: { type: number, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WorkshopInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - description
+        - category
+        - location
         - startAt
         - endAt
         - status
         - capacity
+        - instructor
+        - level
+        - modality
+        - certificateOffered
+        - ingredientsIncluded
+        - price
       properties:
-        name:
-          type: string
-          example: Reposteria francesa
-        description:
-          type: string
-          example: Aprende tecnicas de macaronage, masas y rellenos clasicos.
-        category:
-          type: string
-          example: Reposteria
-        location:
-          type: string
-          example: Aula virtual
-        instructor:
-          type: string
-          example: Chef Pierre Martin
+        name: { type: string, minLength: 3 }
+        description: { type: string, minLength: 10 }
+        category: { type: string }
+        location: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        status:
+          $ref: "#/components/schemas/WorkshopStatus"
+        capacity: { type: integer, minimum: 1 }
+        instructor: { type: string }
         level:
           $ref: "#/components/schemas/WorkshopLevel"
         modality:
           $ref: "#/components/schemas/WorkshopModality"
-        certificateOffered:
-          type: boolean
-          example: true
-        ingredientsIncluded:
-          type: boolean
-          example: false
-        price:
-          type: number
-          format: float
-          minimum: 0
-          example: 120000
-        startAt:
-          type: string
-          format: date-time
-          example: "2026-10-01T15:00:00Z"
-        endAt:
-          type: string
-          format: date-time
-          example: "2026-10-01T18:00:00Z"
-        status:
-          $ref: "#/components/schemas/WorkshopStatus"
-        capacity:
-          type: integer
-          minimum: 1
-          example: 20
-      additionalProperties: false
+        certificateOffered: { type: boolean }
+        ingredientsIncluded: { type: boolean }
+        price: { type: number, minimum: 0 }
     WorkshopUpdateInput:
       type: object
       minProperties: 1
+      additionalProperties: false
       properties:
-        name:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-        location:
-          type: string
-        instructor:
-          type: string
+        name: { type: string, minLength: 3 }
+        description: { type: string, minLength: 10 }
+        category: { type: string }
+        location: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        status:
+          $ref: "#/components/schemas/WorkshopStatus"
+        capacity: { type: integer, minimum: 1 }
+        instructor: { type: string }
         level:
           $ref: "#/components/schemas/WorkshopLevel"
         modality:
           $ref: "#/components/schemas/WorkshopModality"
-        certificateOffered:
-          type: boolean
-        ingredientsIncluded:
-          type: boolean
-        price:
-          type: number
-          format: float
-          minimum: 0
-        startAt:
-          type: string
-          format: date-time
-        endAt:
-          type: string
-          format: date-time
-        status:
-          $ref: "#/components/schemas/WorkshopStatus"
-        capacity:
-          type: integer
-          minimum: 1
-      additionalProperties: false
+        certificateOffered: { type: boolean }
+        ingredientsIncluded: { type: boolean }
+        price: { type: number, minimum: 0 }
     Registration:
       type: object
-      required:
-        - workshopId
-        - userId
-        - registeredAt
+      required: [workshopId, userId, registeredAt]
       properties:
-        workshopId:
-          type: string
-          example: workshop_001
-        userId:
-          type: string
-          example: user_123
-        registeredAt:
-          type: string
-          format: date-time
-          example: "2026-08-10T16:00:00Z"
-    User:
-      type: object
-      required:
-        - id
-        - email
-        - role
-      properties:
-        id:
-          type: string
-          example: user_123
-        email:
-          type: string
-          format: email
-          example: ana@example.com
-        role:
-          $ref: "#/components/schemas/UserRole"
-        createdAt:
-          type: string
-          format: date-time
-          example: "2026-08-01T12:00:00Z"
+        workshopId: { type: string }
+        userId: { type: string }
+        registeredAt: { type: string, format: date-time }
     WorkshopLevel:
       type: string
-      enum:
-        - basico
-        - intermedio
-        - avanzado
-      example: intermedio
+      enum: [basico, intermedio, avanzado]
     WorkshopModality:
       type: string
-      enum:
-        - presencial
-        - virtual
-      example: presencial
+      enum: [presencial, virtual]
     WorkshopStatus:
       type: string
-      enum:
-        - scheduled
-        - cancelled
-      example: scheduled
-    UserRole:
-      type: string
-      enum:
-        - student
-        - admin
-      example: student
+      enum: [scheduled, cancelled, finished]
     Problem:
       type: object
-      required:
-        - type
-        - title
-        - status
+      required: [type, title, status, detail]
       properties:
-        type:
-          type: string
-          format: uri
-          example: https://cookinglab.example.com/problems/validation-error
-        title:
-          type: string
-          example: Validation error
-        status:
-          type: integer
-          format: int32
-          example: 400
-        detail:
-          type: string
-          example: El cuerpo de la solicitud no cumple el esquema esperado.
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        invalidParams:
+          type: array
+          items:
+            type: object
+            required: [name, reason]
+            properties:
+              name: { type: string }
+              reason: { type: string }
 ```
 
-| Metodo | Ruta | Auth | Descripcion corta |
+## Resumen de rutas reales
+
+| Metodo | Ruta | Auth | Handler |
 | --- | --- | --- | --- |
-| GET | `/workshops` | Publico | Lista talleres con paginacion y filtro opcional por categoria. |
-| GET | `/workshops/{id}` | Publico | Obtiene el detalle de un taller. |
-| POST | `/workshops` | Cognito JWT + admin | Crea un taller. |
-| PUT | `/workshops/{id}` | Cognito JWT + admin | Actualiza parcialmente un taller. |
-| DELETE | `/workshops/{id}` | Cognito JWT + admin | Cancela un taller mediante soft-delete. |
-| POST | `/workshops/{id}/register` | Cognito JWT | Inscribe al usuario autenticado en un taller. |
+| GET | `/healthz` | Publico | `handlers/health.ts` |
+| GET | `/workshops` | Publico | `handlers/workshops/list.ts` |
+| POST | `/workshops` | Cognito JWT + admin | `handlers/workshops/create.ts` |
+| GET | `/workshops/{id}` | Publico | `handlers/workshops/getById.ts` |
+| PUT | `/workshops/{id}` | Cognito JWT + admin | `handlers/workshops/update.ts` |
+| DELETE | `/workshops/{id}` | Cognito JWT + admin | `handlers/workshops/remove.ts` |
+| POST | `/workshops/{id}/register` | Cognito JWT | `handlers/registrations/register.ts` |
+
+## Notas de implementacion
+
+- Los errores de backend usan `application/problem+json` y tipos `https://cookinglab.io/errors/...`.
+- `POST /workshops` publica `WORKSHOP_CREATED`.
+- `POST /workshops/{id}/register` publica `STUDENT_REGISTERED`, valida cupo con `registeredCount` y retorna `409` si la inscripcion ya existe.
+- `DELETE /workshops/{id}` es soft delete: actualiza `status` a `cancelled`.
+- `finished` representa talleres terminados; el frontend lo muestra como "Terminado" y bloquea nuevas inscripciones.

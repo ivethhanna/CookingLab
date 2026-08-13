@@ -1,115 +1,133 @@
-# Guia de Despliegue - AWS CDK v2, pnpm y GitHub Actions
+# Guia de Despliegue - CookingLab
 
-## Requisitos Previos
+## Requisitos
 
-1. Node.js 22 o superior.
-2. pnpm: `npm install -g pnpm`.
-3. AWS CLI configurado para el primer bootstrap y el primer deploy manual del stack de CI/CD.
-4. AWS CDK CLI disponible via `pnpm --filter infra cdk`.
+- Node.js 22 o superior.
+- pnpm 11.21.0, tomado desde `package.json` por `pnpm/action-setup`.
+- AWS CLI.
+- AWS CDK v2 mediante `npx cdk` o `pnpm --filter infra cdk`.
 
-## Configuracion Inicial de AWS
+## Primer Acceso a AWS
 
-Instala dependencias:
+1. Crear un usuario IAM para despliegue inicial. No usar la cuenta root.
+2. Para este proyecto academico, asignar temporalmente `AdministratorAccess`.
+3. Crear access keys para ese usuario.
+4. Configurar la CLI:
 
 ```bash
-pnpm install
+aws configure
 ```
 
-Ejecuta bootstrap de CDK una vez por cuenta y region:
+Usar el Access Key ID y Secret Access Key del usuario IAM. No usar credenciales root.
+
+## Bootstrap de CDK
+
+Ejecutar una vez por cuenta y region:
 
 ```bash
 cd infra
-pnpm cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+npx cdk bootstrap aws://ACCOUNT_ID/REGION
 ```
 
-## GitHub Actions con OIDC
+`ACCOUNT_ID` es el numero de cuenta AWS de 12 digitos. No es el Access Key ID. Este es un error comun durante el primer despliegue.
 
-El proyecto usa GitHub Actions OIDC para desplegar sin guardar access keys en GitHub.
+## Rol OIDC para GitHub Actions
 
-Antes de desplegar el stack de CI/CD, edita `infra/lib/stacks/cicd-stack.ts` y reemplaza:
+El pipeline no guarda Access Keys en GitHub. GitHub Actions asume un rol IAM mediante OIDC.
 
-```text
-repo:TU_USUARIO/cookinglab-serverless-aws:*
-```
-
-por el usuario u organizacion real de GitHub, por ejemplo:
-
-```text
-repo:mi-org/cookinglab-serverless-aws:*
-```
-
-Luego despliega el stack de CI/CD:
+Antes de usar el pipeline, desplegar manualmente una vez el stack de CI/CD:
 
 ```bash
 cd infra
 npx cdk deploy cookinglab-dev-cicd --context stage=dev
 ```
 
-El output `GitHubActionsRoleArn` es el ARN que debe configurarse en GitHub.
+Para produccion, usar:
 
-En GitHub, crea el secret:
-
-1. Abre `Settings > Secrets and variables > Actions`.
-2. Crea un repository secret llamado `AWS_DEPLOY_ROLE_ARN`.
-3. Pega el valor del output `GitHubActionsRoleArn`.
-
-Si el proveedor OIDC de GitHub ya existe en la cuenta AWS, cambia `cicd-stack.ts` para usar la variante comentada con `iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn` en vez de crear un provider nuevo.
-
-## Workflows
-
-### Pull Request
-
-Un pull request hacia `dev` o `main` ejecuta `.github/workflows/ci.yml`:
-
-```text
-checkout -> Node 22 + pnpm -> install -> lint -> build backend -> test backend -> build frontend -> build infra -> cdk synth dev
+```bash
+npx cdk deploy cookinglab-prod-cicd --context stage=prod
 ```
 
-No hace deploy.
-
-### Deploy a Dev
-
-Un push a la rama `dev` ejecuta `.github/workflows/deploy-dev.yml`:
+El output `GitHubActionsRoleArn` se debe copiar a GitHub como repository secret:
 
 ```text
-checkout -> Node 22 + pnpm -> install -> build backend/frontend -> OIDC assume role -> cdk deploy dev -> smoke test /healthz
+AWS_DEPLOY_ROLE_ARN=<valor del output GitHubActionsRoleArn>
 ```
 
-El deploy escribe `infra/outputs.json`, lee `cookinglab-dev-api.ApiUrl` y ejecuta un smoke test contra:
+Si el proveedor OIDC de GitHub ya existe en la cuenta, el `CicdStack` actual lo importa con `OpenIdConnectProvider.fromOpenIdConnectProviderArn`.
+
+## Environment de Produccion en GitHub
+
+Crear el environment `production` en:
 
 ```text
-${API_URL}/healthz
+Settings > Environments > New environment
 ```
 
-### Deploy a Produccion
+Agregar required reviewers para que `deploy-prod.yml` espere aprobacion antes de desplegar. Segun la documentacion actual de GitHub, los required reviewers de environments estan disponibles en repositorios publicos para planes actuales. En repositorios privados, GitHub Free/Pro/Team permiten environments y secrets, pero los required reviewers como regla de proteccion requieren GitHub Enterprise; si el repositorio privado no muestra esa opcion, usar branch protection o aprobacion manual alternativa.
 
-Un tag que matchee `v*`, por ejemplo `v1.0.0`, ejecuta `.github/workflows/deploy-prod.yml` con `environment: production`.
+Fuente: GitHub Docs, "Deployments and environments" y "Reviewing deployments".
 
-Configura manualmente en GitHub:
+## Flujo Normal
+
+1. Crear rama feature desde `dev`.
+2. Abrir PR hacia `dev`.
+3. `ci.yml` ejecuta lint, builds y `cdk synth`.
+4. Hacer merge a `dev`.
+5. `deploy-dev.yml` despliega automaticamente dev.
+6. Crear tag `v*` para produccion.
+7. `deploy-prod.yml` espera aprobacion del environment `production` y despliega prod.
+
+## Orden Real de Deploy Dev
+
+`deploy-dev.yml` usa este orden:
+
+1. `pnpm install --frozen-lockfile`.
+2. `pnpm --filter backend run build`.
+3. Configurar credenciales AWS por OIDC.
+4. Crear placeholder minimo en `frontend/dist/index.html`.
+5. Desplegar infraestructura sin FrontStack:
+
+```bash
+npx cdk deploy cookinglab-dev-data cookinglab-dev-auth cookinglab-dev-events cookinglab-dev-api cookinglab-dev-observability cookinglab-dev-cicd --context stage=dev --require-approval never --outputs-file outputs.json
+```
+
+6. Leer `outputs.json` y escribir `frontend/.env.production` con `VITE_API_URL`, `VITE_USER_POOL_ID` y `VITE_USER_POOL_CLIENT_ID`.
+7. Construir el frontend real con `pnpm --filter frontend run build`.
+8. Desplegar solo FrontStack:
+
+```bash
+npx cdk deploy cookinglab-dev-front --context stage=dev --require-approval never --outputs-file outputs-front.json
+```
+
+9. Extraer `API_URL` desde `outputs.json` y ejecutar smoke test contra `/healthz`.
+
+Este orden es necesario por dos razones:
+
+- CDK sintetiza toda la app durante cualquier `cdk deploy`; como `FrontStack` empaqueta `frontend/dist`, se crea un placeholder para evitar `CannotFindAsset`.
+- Vite inyecta variables `VITE_*` en tiempo de build; por eso el build real del frontend ocurre despues de desplegar AuthStack y ApiStack, cuando ya existen los outputs de Cognito y API Gateway.
+
+`deploy-prod.yml` sigue el mismo patron con stacks `cookinglab-prod-*` y `STAGE=prod`.
+
+## Problemas Comunes Durante el Primer Despliegue
+
+### Confundir Account ID con Access Key ID
+
+`cdk bootstrap aws://ACCOUNT_ID/REGION` requiere el numero de cuenta AWS de 12 digitos. El Access Key ID empieza con prefijos como `AKIA...` y no sirve para bootstrap.
+
+### Artefactos compilados junto a TypeScript
+
+No deben existir `.js` ni `.d.ts` generados junto a los `.ts` fuente en:
+
+- `infra/bin`
+- `infra/lib`
+- `backend/src`
+
+El repositorio incluye reglas locales:
 
 ```text
-Settings > Environments > production
+infra/.gitignore: bin/**/*.js, bin/**/*.d.ts, lib/**/*.js, lib/**/*.d.ts
+backend/.gitignore: src/**/*.js, src/**/*.d.ts
 ```
 
-y agrega una protection rule que requiera reviewer antes de ejecutar el job.
-
-## Flujo Completo
-
-1. Crear PR hacia `dev`.
-2. GitHub Actions ejecuta checks de CI.
-3. Merge a `dev`.
-4. Deploy automatico a `dev`.
-5. Smoke test automatico contra `/healthz`.
-6. Crear tag, por ejemplo `v1.0.0`.
-7. Deploy a `prod` queda esperando aprobacion manual del environment `production`.
-8. Al aprobar, GitHub Actions despliega `prod` y ejecuta smoke test.
-
-## Orden de Stacks
-
-1. `cookinglab-<stage>-data`: tabla DynamoDB.
-2. `cookinglab-<stage>-auth`: Cognito User Pool.
-3. `cookinglab-<stage>-events`: EventBus, SNS Topic y SQS DLQ.
-4. `cookinglab-<stage>-api`: API Gateway y Lambdas.
-5. `cookinglab-<stage>-front`: bucket S3, CloudFront, OAC y WAF.
-6. `cookinglab-<stage>-observability`: alarms y dashboard CloudWatch.
-7. `cookinglab-<stage>-cicd`: role OIDC para GitHub Actions.
+Esto evita que Node resuelva artefactos viejos y oculte cambios en TypeScript.

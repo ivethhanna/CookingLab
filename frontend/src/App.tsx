@@ -3,7 +3,7 @@ import { Navbar } from './components/Navbar';
 
 export default function App() {
   return (
-    <div className="app-shell">
+    <div className="app-shell aurora-bg">
       <Navbar />
       <main className="main-content">
         <Outlet />

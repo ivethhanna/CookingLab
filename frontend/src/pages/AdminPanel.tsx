@@ -1,8 +1,28 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  Award,
+  BookOpen,
+  Calendar,
+  CheckCircle2,
+  ChefHat,
+  Clock,
+  Edit2,
+  GraduationCap,
+  LayoutDashboard,
+  PlusCircle,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  Users,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { Workshop, WorkshopInput } from '@shared/types';
 import { createWorkshop, deleteWorkshop, listWorkshops, updateWorkshop } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { Badge } from '../components/Badge';
+import { WorkshopForm } from '../components/WorkshopForm';
 
 const emptyWorkshop: WorkshopInput = {
   name: '',
@@ -18,20 +38,23 @@ const emptyWorkshop: WorkshopInput = {
   startAt: '',
   endAt: '',
   status: 'scheduled',
-  capacity: 1,
+  capacity: 10,
 };
 
 function toDateTimeLocal(value: string): string {
-  if (!value) {
-    return '';
-  }
-
+  if (!value) return '';
   return value.slice(0, 16);
 }
 
 function toIso(value: string): string {
   return value ? new Date(value).toISOString() : '';
 }
+
+const statusLabels: Record<Workshop['status'], string> = {
+  scheduled: 'Programado',
+  cancelled: 'Cancelado',
+  finished: 'Finalizado',
+};
 
 export function AdminPanel() {
   const { isAdmin, loading } = useAuth();
@@ -40,15 +63,22 @@ export function AdminPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   async function refresh() {
-    const response = await listWorkshops({ limit: 50 });
-    setWorkshops(response.items);
+    setRefreshing(true);
+    try {
+      const response = await listWorkshops({ limit: 50 });
+      setWorkshops(response.items);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => {
     if (isAdmin) {
-      void refresh().catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar talleres.'));
+      void refresh().catch((err) => setError(err instanceof Error ? err.message : 'No se pudieron cargar los talleres desde la API.'));
     }
   }, [isAdmin]);
 
@@ -64,6 +94,7 @@ export function AdminPanel() {
     event.preventDefault();
     setMessage(null);
     setError(null);
+    setSubmitting(true);
 
     const payload: WorkshopInput = {
       ...form,
@@ -76,10 +107,10 @@ export function AdminPanel() {
     try {
       if (editingId) {
         await updateWorkshop(editingId, payload);
-        setMessage('Taller actualizado.');
+        setMessage('Taller actualizado correctamente.');
       } else {
         await createWorkshop(payload);
-        setMessage('Taller creado.');
+        setMessage('Taller creado e ingresado a la agenda.');
       }
 
       setForm(emptyWorkshop);
@@ -87,6 +118,8 @@ export function AdminPanel() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el taller.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -108,195 +141,169 @@ export function AdminPanel() {
       status: workshop.status,
       capacity: workshop.capacity,
     });
+
+    window.scrollTo({ top: 250, behavior: 'smooth' });
   }
 
   async function cancelWorkshop(id: string) {
+    if (!window.confirm('¿Seguro que deseas cancelar o eliminar este taller?')) {
+      return;
+    }
+
     setMessage(null);
     setError(null);
 
     try {
       await deleteWorkshop(id);
-      setMessage('Taller cancelado.');
+      setMessage('Taller eliminado exitosamente.');
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cancelar el taller.');
     }
   }
 
+  const totalCapacity = workshops.reduce((sum, w) => sum + w.capacity, 0);
+  const totalRegistered = workshops.reduce((sum, w) => sum + w.registeredCount, 0);
+  const scheduledCount = workshops.filter((w) => w.status === 'scheduled').length;
+
   return (
     <section className="container admin-layout">
-      <form className="panel" onSubmit={handleSubmit}>
-        <div className="section-heading">
-          <p className="eyebrow">Administracion</p>
-          <h1>{editingId ? 'Editar taller' : 'Crear taller'}</h1>
-        </div>
+      {/* Header Section */}
+      <section className="section-dark">
+        <Badge variant="accent" style={{ marginBottom: '0.75rem' }}>
+          <LayoutDashboard size={14} /> PANEL DE ADMINISTRACIÓN Y CONTROL
+        </Badge>
+        <h2>GESTIÓN DE LA AGENDA Y CUPOS</h2>
+        <p style={{ marginTop: '0.5rem' }}>
+          Crea, actualiza o elimina talleres en tiempo real directamente en la API de producción.
+        </p>
 
-        {message && <p className="alert success">{message}</p>}
-        {error && <p className="alert error">{error}</p>}
+        <div className="admin-stats-grid" style={{ marginTop: '2rem' }}>
+          <div className="stat-card">
+            <div className="stat-icon">
+              <GraduationCap size={22} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>TALLERES TOTALES</span>
+              <strong style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', display: 'block', color: 'var(--text-primary)' }}>
+                {workshops.length}
+              </strong>
+            </div>
+          </div>
 
-        <div className="form-grid">
-          <label>
-            Nombre
-            <input required minLength={3} value={form.name} onChange={(event) => updateField('name', event.target.value)} />
-          </label>
-          <label>
-            Categoria
-            <input required value={form.category} onChange={(event) => updateField('category', event.target.value)} />
-          </label>
-          <label className="span-2">
-            Descripcion
-            <textarea
-              required
-              minLength={10}
-              value={form.description}
-              onChange={(event) => updateField('description', event.target.value)}
-            />
-          </label>
-          <label>
-            Lugar
-            <input required value={form.location} onChange={(event) => updateField('location', event.target.value)} />
-          </label>
-          <label>
-            Instructor
-            <input required value={form.instructor} onChange={(event) => updateField('instructor', event.target.value)} />
-          </label>
-          <label>
-            Nivel
-            <select value={form.level} onChange={(event) => updateField('level', event.target.value as WorkshopInput['level'])}>
-              <option value="basico">Basico</option>
-              <option value="intermedio">Intermedio</option>
-              <option value="avanzado">Avanzado</option>
-            </select>
-          </label>
-          <label>
-            Modalidad
-            <select
-              value={form.modality}
-              onChange={(event) => updateField('modality', event.target.value as WorkshopInput['modality'])}
-            >
-              <option value="presencial">Presencial</option>
-              <option value="virtual">Virtual</option>
-            </select>
-          </label>
-          <label>
-            Precio
-            <input
-              min={1}
-              required
-              type="number"
-              value={form.price}
-              onChange={(event) => updateField('price', Number(event.target.value))}
-            />
-          </label>
-          <label>
-            Capacidad
-            <input
-              min={1}
-              required
-              type="number"
-              value={form.capacity}
-              onChange={(event) => updateField('capacity', Number(event.target.value))}
-            />
-          </label>
-          <label>
-            Inicio
-            <input
-              required
-              type="datetime-local"
-              value={form.startAt}
-              onChange={(event) => updateField('startAt', event.target.value)}
-            />
-          </label>
-          <label>
-            Fin
-            <input
-              required
-              type="datetime-local"
-              value={form.endAt}
-              onChange={(event) => updateField('endAt', event.target.value)}
-            />
-          </label>
-          <label>
-            Estado
-            <select value={form.status} onChange={(event) => updateField('status', event.target.value as WorkshopInput['status'])}>
-              <option value="scheduled">Scheduled</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
-          <div className="check-row">
-            <label>
-              <input
-                checked={form.certificateOffered}
-                onChange={(event) => updateField('certificateOffered', event.target.checked)}
-                type="checkbox"
-              />
-              Certificado
-            </label>
-            <label>
-              <input
-                checked={form.ingredientsIncluded}
-                onChange={(event) => updateField('ingredientsIncluded', event.target.checked)}
-                type="checkbox"
-              />
-              Ingredientes
-            </label>
+          <div className="stat-card">
+            <div className="stat-icon" style={{ backgroundColor: 'var(--bg-cream)', color: 'var(--accent-orange)' }}>
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>PROGRAMADOS</span>
+              <strong style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', display: 'block', color: 'var(--text-primary)' }}>
+                {scheduledCount}
+              </strong>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">
+              <Users size={22} />
+            </div>
+            <div>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>INSCRIPCIONES TOTALES</span>
+              <strong style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', display: 'block', color: 'var(--text-primary)' }}>
+                {totalRegistered} / {totalCapacity}
+              </strong>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className="actions">
-          <button className="btn-primary" type="submit">
-            {editingId ? 'Actualizar' : 'Crear'}
+      {/* Workshop Form Component */}
+      <WorkshopForm
+        editingId={editingId}
+        error={error}
+        form={form}
+        message={message}
+        onCancelEdit={() => {
+          setEditingId(null);
+          setForm(emptyWorkshop);
+        }}
+        onSubmit={handleSubmit}
+        onUpdateField={updateField}
+        submitting={submitting}
+      />
+
+      {/* Existing Workshops Table Section */}
+      <section className="card" style={{ padding: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.5rem' }}>CATÁLOGO REGISTRADO ({workshops.length})</h2>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Lista de talleres almacenados en la base de datos de producción.
+            </p>
+          </div>
+
+          <button className="btn-secondary" disabled={refreshing} onClick={() => void refresh()} type="button" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+            <RefreshCw size={15} />
+            <span>{refreshing ? 'Actualizando...' : 'Refrescar Lista'}</span>
           </button>
-          {editingId && (
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                setEditingId(null);
-                setForm(emptyWorkshop);
-              }}
-              type="button"
-            >
-              Limpiar
-            </button>
-          )}
         </div>
-      </form>
 
-      <section className="panel">
-        <div className="section-heading">
-          <p className="eyebrow">Inventario</p>
-          <h2>Talleres existentes</h2>
-        </div>
-        <div className="table-wrap">
+        <div className="table-wrap" style={{ marginTop: '1.25rem' }}>
           <table>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Categoria</th>
-                <th>Cupos</th>
+                <th>Taller</th>
+                <th>Categoría</th>
+                <th>Instructor</th>
+                <th>Cupos (Ocupados/Total)</th>
                 <th>Estado</th>
-                <th>Acciones</th>
+                <th style={{ textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {workshops.map((workshop) => (
-                <tr key={workshop.id}>
-                  <td>{workshop.name}</td>
-                  <td>{workshop.category}</td>
-                  <td>
-                    {workshop.registeredCount}/{workshop.capacity}
-                  </td>
-                  <td>{workshop.status}</td>
-                  <td className="row-actions">
-                    <button className="btn-secondary" onClick={() => startEditing(workshop)} type="button">
-                      Editar
-                    </button>
-                    <button className="btn-danger" onClick={() => void cancelWorkshop(workshop.id)} type="button">
-                      Cancelar
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {workshops.map((w) => {
+                const fillPercent = Math.min(100, Math.round((w.registeredCount / w.capacity) * 100));
+
+                return (
+                  <tr key={w.id}>
+                    <td>
+                      <strong style={{ color: 'var(--text-primary)', display: 'block' }}>{w.name}</strong>
+                      <small style={{ color: 'var(--text-muted)' }}>${w.price.toLocaleString('es-CO')}</small>
+                    </td>
+                    <td>
+                      <Badge>{w.category}</Badge>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{w.instructor}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: '120px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                          {w.registeredCount} / {w.capacity}
+                        </span>
+                        <div className="meter-bar-track" style={{ height: '5px' }}>
+                          <div className="meter-bar-fill" style={{ width: `${fillPercent}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <Badge variant={w.status}>
+                        {statusLabels[w.status]}
+                      </Badge>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                        <button className="btn-secondary" onClick={() => startEditing(w)} type="button" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+                          <Edit2 size={13} />
+                          <span>Editar</span>
+                        </button>
+                        <button className="btn-danger" onClick={() => void cancelWorkshop(w.id)} type="button">
+                          <Trash2 size={13} />
+                          <span>Eliminar</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
