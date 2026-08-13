@@ -553,6 +553,12 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   gap: 0.75rem;
 }
 
+.quick-stat-item > div:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
 .quick-stat-icon {
   width: 2.4rem;
   height: 2.4rem;
@@ -564,6 +570,24 @@ button:disabled, .btn-primary:disabled, .btn-secondary:disabled {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.stat-kicker {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.stat-title {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1.25;
 }
 
 /* Collage of Images & Highlight Block */
@@ -670,6 +694,12 @@ textarea {
   gap: 0.5rem;
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+.meta-item > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
 }
 
 .meta-item svg {

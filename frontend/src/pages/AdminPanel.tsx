@@ -69,7 +69,7 @@ export function AdminPanel() {
   async function refresh() {
     setRefreshing(true);
     try {
-      const response = await listWorkshops({ limit: 50 });
+      const response = await listWorkshops({ limit: 50, includeCancelled: true });
       setWorkshops(response.items);
     } finally {
       setRefreshing(false);

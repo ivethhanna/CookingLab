@@ -9,6 +9,7 @@ type ListWorkshopsParams = {
   limit?: number;
   nextToken?: string;
   category?: string;
+  includeCancelled?: boolean;
 };
 
 type ListWorkshopsResponse = {
@@ -71,6 +72,10 @@ export function listWorkshops(params: ListWorkshopsParams = {}): Promise<ListWor
 
   if (params.category) {
     query.set('category', params.category);
+  }
+
+  if (params.includeCancelled) {
+    query.set('includeCancelled', 'true');
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : '';

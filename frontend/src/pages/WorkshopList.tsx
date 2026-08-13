@@ -11,13 +11,10 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
-import { Workshop } from '@shared/types';
+import { WORKSHOP_CATEGORIES, Workshop } from '@shared/types';
 import { listWorkshops } from '../api/client';
 import { Badge } from '../components/Badge';
 import { WorkshopCard } from '../components/WorkshopCard';
-import { WORKSHOP_CATEGORIES } from '../constants/workshopCategories';
-
-const categoryFilters = ['Todas', ...WORKSHOP_CATEGORIES];
 
 export function WorkshopList() {
   const [items, setItems] = useState<Workshop[]>([]);
@@ -55,10 +52,9 @@ export function WorkshopList() {
     void load(true);
   }
 
-  function handleCategorySelect(selectedCategory: string) {
-    const value = selectedCategory === 'Todas' ? '' : selectedCategory;
-    setCategory(value);
-    void load(true, value);
+  function clearCategoryFilter() {
+    setCategory('');
+    void load(true, '');
   }
 
   const scheduledCount = items.filter((workshop) => workshop.status === 'scheduled').length;
@@ -158,9 +154,9 @@ export function WorkshopList() {
               value={category}
             >
               <option value="">Todas las categorias</option>
-              {WORKSHOP_CATEGORIES.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+              {WORKSHOP_CATEGORIES.map((categoryOption) => (
+                <option key={categoryOption} value={categoryOption}>
+                  {categoryOption}
                 </option>
               ))}
             </select>
@@ -178,34 +174,6 @@ export function WorkshopList() {
           </Badge>
           <Badge variant="accent">{scheduledCount} Programados</Badge>
         </div>
-      </div>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'center' }}>
-        <span
-          style={{
-            fontSize: '0.78rem',
-            color: 'var(--text-dim)',
-            fontWeight: 800,
-            textTransform: 'uppercase',
-            marginRight: '0.4rem',
-          }}
-        >
-          Categorias:
-        </span>
-        {categoryFilters.map((cat) => {
-          const isActive = (cat === 'Todas' && !category) || category.toLowerCase() === cat.toLowerCase();
-          return (
-            <button
-              className={`nav-link ${isActive ? 'active' : ''}`}
-              key={cat}
-              onClick={() => handleCategorySelect(cat)}
-              style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}
-              type="button"
-            >
-              {cat}
-            </button>
-          );
-        })}
       </div>
 
       {error && (
@@ -241,7 +209,7 @@ export function WorkshopList() {
           <p>Prueba seleccionando otra categoria o borra el filtro actual.</p>
 
           {category && (
-            <button className="btn-secondary inline-action" onClick={() => handleCategorySelect('Todas')} type="button">
+            <button className="btn-secondary inline-action" onClick={clearCategoryFilter} type="button">
               Ver todos los talleres
             </button>
           )}

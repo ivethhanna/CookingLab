@@ -1,7 +1,6 @@
 import { FormEvent } from 'react';
 import { AlertCircle, CheckCircle2, Edit2, PlusCircle } from 'lucide-react';
-import { WorkshopInput } from '@shared/types';
-import { WORKSHOP_CATEGORIES } from '../constants/workshopCategories';
+import { WORKSHOP_CATEGORIES, WorkshopInput } from '@shared/types';
 
 type WorkshopFormProps = {
   form: WorkshopInput;
@@ -81,12 +80,12 @@ export function WorkshopForm({
             required
             value={form.category}
           >
-            <option value="" disabled>
+            <option disabled value="">
               Selecciona una categoria
             </option>
-            {WORKSHOP_CATEGORIES.map((option) => (
-              <option key={option} value={option}>
-                {option}
+            {WORKSHOP_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
               </option>
             ))}
           </select>
