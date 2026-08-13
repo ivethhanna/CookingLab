@@ -22,6 +22,7 @@ import { Workshop, WorkshopInput } from '@shared/types';
 import { createWorkshop, deleteWorkshop, listWorkshops, updateWorkshop } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../components/Badge';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { WorkshopForm } from '../components/WorkshopForm';
 
 const emptyWorkshop: WorkshopInput = {
@@ -65,6 +66,7 @@ export function AdminPanel() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [workshopToCancel, setWorkshopToCancel] = useState<Workshop | null>(null);
 
   async function refresh() {
     setRefreshing(true);
@@ -145,17 +147,15 @@ export function AdminPanel() {
     window.scrollTo({ top: 250, behavior: 'smooth' });
   }
 
-  async function cancelWorkshop(id: string) {
-    if (!window.confirm('¿Seguro que deseas cancelar o eliminar este taller?')) {
-      return;
-    }
+  async function cancelWorkshop(workshop: Workshop) {
+    setWorkshopToCancel(null);
 
     setMessage(null);
     setError(null);
 
     try {
-      await deleteWorkshop(id);
-      setMessage('Taller eliminado exitosamente.');
+      await deleteWorkshop(workshop.id);
+      setMessage('Taller cancelado correctamente.');
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cancelar el taller.');
@@ -295,9 +295,9 @@ export function AdminPanel() {
                           <Edit2 size={13} />
                           <span>Editar</span>
                         </button>
-                        <button className="btn-danger" onClick={() => void cancelWorkshop(w.id)} type="button">
+                        <button className="btn-danger" onClick={() => setWorkshopToCancel(w)} type="button">
                           <Trash2 size={13} />
-                          <span>Eliminar</span>
+                          <span>Cancelar</span>
                         </button>
                       </div>
                     </td>
@@ -308,6 +308,24 @@ export function AdminPanel() {
           </table>
         </div>
       </section>
+
+      <ConfirmDialog
+        confirmLabel="Cancelar taller"
+        description={
+          <>
+            Los usuarios inscritos dejaran de verlo en el catalogo, pero la informacion de{' '}
+            <strong>{workshopToCancel?.name}</strong> se conserva en el sistema.
+          </>
+        }
+        onCancel={() => setWorkshopToCancel(null)}
+        onConfirm={() => {
+          if (workshopToCancel) {
+            void cancelWorkshop(workshopToCancel);
+          }
+        }}
+        open={Boolean(workshopToCancel)}
+        title="Cancelar taller"
+      />
     </section>
   );
 }

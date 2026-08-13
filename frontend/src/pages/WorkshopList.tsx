@@ -1,10 +1,9 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BookOpen,
   Calendar,
   ChevronDown,
   ChevronRight,
-  Filter,
   Globe,
   GraduationCap,
   Search,
@@ -47,14 +46,13 @@ export function WorkshopList() {
     void load(true);
   }, []);
 
-  function handleFilter(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void load(true);
+  function applyCategoryFilter(value: string) {
+    setCategory(value);
+    void load(true, value);
   }
 
   function clearCategoryFilter() {
-    setCategory('');
-    void load(true, '');
+    applyCategoryFilter('');
   }
 
   const scheduledCount = items.filter((workshop) => workshop.status === 'scheduled').length;
@@ -144,13 +142,14 @@ export function WorkshopList() {
       </div>
 
       <div className="toolbar-panel">
-        <form className="filter-form" onSubmit={handleFilter}>
+        <div className="filter-form">
           <div className="search-wrapper">
             <Search size={18} />
             <select
               aria-label="Categoria"
               className="search-input"
-              onChange={(event) => setCategory(event.target.value)}
+              disabled={loading}
+              onChange={(event) => applyCategoryFilter(event.target.value)}
               value={category}
             >
               <option value="">Todas las categorias</option>
@@ -161,11 +160,7 @@ export function WorkshopList() {
               ))}
             </select>
           </div>
-          <button className="btn-secondary" disabled={loading} type="submit">
-            <Filter size={16} />
-            <span>{loading ? 'Filtrando...' : 'Filtrar'}</span>
-          </button>
-        </form>
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <Badge>
@@ -195,7 +190,7 @@ export function WorkshopList() {
           ))}
         </div>
       ) : (
-        <div className="workshop-grid">
+        <div aria-busy={loading} className={`workshop-grid ${loading ? 'is-loading' : ''}`}>
           {items.map((workshop) => (
             <WorkshopCard key={workshop.id} workshop={workshop} />
           ))}
