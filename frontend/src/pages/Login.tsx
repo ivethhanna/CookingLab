@@ -1,9 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { SetNewPassword } from './SetNewPassword';
 
 export function Login() {
-  const { user, signIn } = useAuth();
+  const { user, pendingNewPassword, signIn } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -12,6 +13,14 @@ export function Login() {
 
   if (user) {
     return <Navigate replace to="/" />;
+  }
+
+  if (pendingNewPassword) {
+    return (
+      <section className="container auth-page">
+        <SetNewPassword />
+      </section>
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

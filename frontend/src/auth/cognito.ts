@@ -12,6 +12,18 @@ export type AuthUser = {
   claims: Record<string, unknown>;
 };
 
+export type NewPasswordUserAttributes = Record<string, string>;
+
+export class NewPasswordRequiredError extends Error {
+  constructor(
+    public cognitoUser: CognitoUser,
+    public userAttributes: NewPasswordUserAttributes
+  ) {
+    super('NEW_PASSWORD_REQUIRED');
+    this.name = 'NewPasswordRequiredError';
+  }
+}
+
 let userPool: CognitoUserPool | null = null;
 let currentUser: AuthUser | null = null;
 
@@ -88,11 +100,32 @@ export function confirmSignUp(email: string, code: string): Promise<void> {
 }
 
 export function signIn(email: string, password: string): Promise<string> {
-  const user = new CognitoUser({ Username: email, Pool: initCognito() });
+  const cognitoUser = new CognitoUser({ Username: email, Pool: initCognito() });
   const authDetails = new AuthenticationDetails({ Username: email, Password: password });
 
   return new Promise((resolve, reject) => {
-    user.authenticateUser(authDetails, {
+    cognitoUser.authenticateUser(authDetails, {
+      onSuccess: (session) => {
+        currentUser = sessionToUser(session);
+        resolve(currentUser.idToken);
+      },
+      onFailure: reject,
+      newPasswordRequired: (userAttributes: NewPasswordUserAttributes) => {
+        delete userAttributes.email_verified;
+        delete userAttributes.email;
+        reject(new NewPasswordRequiredError(cognitoUser, userAttributes));
+      },
+    });
+  });
+}
+
+export function completeNewPassword(
+  cognitoUser: CognitoUser,
+  newPassword: string,
+  userAttributes: NewPasswordUserAttributes
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    cognitoUser.completeNewPasswordChallenge(newPassword, userAttributes, {
       onSuccess: (session) => {
         currentUser = sessionToUser(session);
         resolve(currentUser.idToken);
