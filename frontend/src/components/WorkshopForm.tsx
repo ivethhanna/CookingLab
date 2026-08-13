@@ -1,6 +1,7 @@
 import { FormEvent } from 'react';
 import { AlertCircle, CheckCircle2, Edit2, PlusCircle } from 'lucide-react';
 import { WorkshopInput } from '@shared/types';
+import { WORKSHOP_CATEGORIES } from '../constants/workshopCategories';
 
 type WorkshopFormProps = {
   form: WorkshopInput;
@@ -28,17 +29,21 @@ export function WorkshopForm({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '1.5rem' }}>
-            {editingId ? <Edit2 size={20} style={{ color: 'var(--accent-orange)' }} /> : <PlusCircle size={20} style={{ color: 'var(--accent-orange)' }} />}
+            {editingId ? (
+              <Edit2 size={20} style={{ color: 'var(--accent-orange)' }} />
+            ) : (
+              <PlusCircle size={20} style={{ color: 'var(--accent-orange)' }} />
+            )}
             {editingId ? 'EDITAR TALLER' : 'CREAR NUEVO TALLER'}
           </h2>
           <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-            La información se sincronizará inmediatamente con el catálogo general.
+            La informacion se sincronizara inmediatamente con el catalogo general.
           </p>
         </div>
 
         {editingId && (
           <button className="btn-secondary" onClick={onCancelEdit} type="button" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-            Cancelar Edición
+            Cancelar Edicion
           </button>
         )}
       </div>
@@ -61,59 +66,67 @@ export function WorkshopForm({
         <label className="input-group">
           Nombre del Taller
           <input
-            required
             minLength={3}
-            placeholder="ej. Masterclass de Pasta Fresca"
-            value={form.name}
             onChange={(e) => onUpdateField('name', e.target.value)}
+            placeholder="ej. Masterclass de Pasta Fresca"
+            required
+            value={form.name}
           />
         </label>
 
         <label className="input-group">
-          Categoría
-          <input
-            required
-            placeholder="ej. Pastelería, Cocina Italiana..."
-            value={form.category}
+          Categoria
+          <select
             onChange={(e) => onUpdateField('category', e.target.value)}
-          />
+            required
+            value={form.category}
+          >
+            <option value="" disabled>
+              Selecciona una categoria
+            </option>
+            {WORKSHOP_CATEGORIES.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="input-group span-2">
-          Descripción Detallada
+          Descripcion Detallada
           <textarea
-            required
             minLength={10}
-            placeholder="Describe lo que aprenderán los estudiantes, recetas y dinámicas..."
-            value={form.description}
             onChange={(e) => onUpdateField('description', e.target.value)}
+            placeholder="Describe lo que aprenderan los estudiantes, recetas y dinamicas..."
+            required
+            value={form.description}
           />
         </label>
 
         <label className="input-group">
-          Ubicación / Lugar
+          Ubicacion / Lugar
           <input
-            required
-            placeholder="ej. Sede Poblado o Enlace Zoom"
-            value={form.location}
             onChange={(e) => onUpdateField('location', e.target.value)}
+            placeholder="ej. Sede Poblado o Enlace Zoom"
+            required
+            value={form.location}
           />
         </label>
 
         <label className="input-group">
           Instructor / Chef
           <input
-            required
-            placeholder="ej. Chef Marco Rossi"
-            value={form.instructor}
             onChange={(e) => onUpdateField('instructor', e.target.value)}
+            placeholder="ej. Chef Marco Rossi"
+            required
+            value={form.instructor}
           />
         </label>
 
         <label className="input-group">
           Nivel
           <select value={form.level} onChange={(e) => onUpdateField('level', e.target.value as WorkshopInput['level'])}>
-            <option value="basico">Básico</option>
+            <option value="basico">Basico</option>
             <option value="intermedio">Intermedio</option>
             <option value="avanzado">Avanzado</option>
           </select>
@@ -131,41 +144,41 @@ export function WorkshopForm({
           Precio ($ COP)
           <input
             min={1}
+            onChange={(e) => onUpdateField('price', Number(e.target.value))}
             required
             type="number"
             value={form.price || ''}
-            onChange={(e) => onUpdateField('price', Number(e.target.value))}
           />
         </label>
 
         <label className="input-group">
-          Capacidad (Cupos Máximos)
+          Capacidad (Cupos Maximos)
           <input
             min={1}
+            onChange={(e) => onUpdateField('capacity', Number(e.target.value))}
             required
             type="number"
             value={form.capacity || ''}
-            onChange={(e) => onUpdateField('capacity', Number(e.target.value))}
           />
         </label>
 
         <label className="input-group">
           Fecha y Hora Inicio
           <input
+            onChange={(e) => onUpdateField('startAt', e.target.value)}
             required
             type="datetime-local"
             value={form.startAt}
-            onChange={(e) => onUpdateField('startAt', e.target.value)}
           />
         </label>
 
         <label className="input-group">
           Fecha y Hora Fin
           <input
+            onChange={(e) => onUpdateField('endAt', e.target.value)}
             required
             type="datetime-local"
             value={form.endAt}
-            onChange={(e) => onUpdateField('endAt', e.target.value)}
           />
         </label>
 
@@ -183,8 +196,8 @@ export function WorkshopForm({
             <input
               checked={form.ingredientsIncluded}
               onChange={(e) => onUpdateField('ingredientsIncluded', e.target.checked)}
-              type="checkbox"
               style={{ width: '1.1rem', height: '1.1rem', accentColor: 'var(--accent-orange)' }}
+              type="checkbox"
             />
             <span>Incluye Ingredientes e Insumos</span>
           </label>
@@ -193,8 +206,8 @@ export function WorkshopForm({
             <input
               checked={form.certificateOffered}
               onChange={(e) => onUpdateField('certificateOffered', e.target.checked)}
-              type="checkbox"
               style={{ width: '1.1rem', height: '1.1rem', accentColor: 'var(--accent-orange)' }}
+              type="checkbox"
             />
             <span>Ofrece Certificado Oficial</span>
           </label>
