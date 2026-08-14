@@ -1,8 +1,8 @@
-import { APIGatewayProxyEvent } from 'aws-lambda';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isAdmin } from '../../../lib/auth';
 import { putWorkshop } from '../../../lib/dynamo';
 import { publishEvent } from '../../../lib/events';
+import { mockApiEvent } from '../../../lib/__tests__/testHelpers';
 import { handler } from '../create';
 
 vi.mock('../../../lib/auth', () => ({
@@ -34,8 +34,8 @@ const validWorkshopInput = {
   price: 180000,
 };
 
-function eventWithBody(body: unknown): APIGatewayProxyEvent {
-  return {
+function eventWithBody(body: unknown) {
+  return mockApiEvent({
     body: JSON.stringify(body),
     requestContext: {
       authorizer: {
@@ -44,8 +44,8 @@ function eventWithBody(body: unknown): APIGatewayProxyEvent {
           'cognito:groups': 'admin',
         },
       },
-    },
-  } as APIGatewayProxyEvent;
+    } as any,
+  });
 }
 
 describe('create workshop handler', () => {

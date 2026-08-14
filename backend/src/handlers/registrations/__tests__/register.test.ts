@@ -1,8 +1,8 @@
-import { APIGatewayProxyEvent } from 'aws-lambda';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getUserId } from '../../../lib/auth';
 import { getWorkshop, incrementRegisteredCount, putRegistration } from '../../../lib/dynamo';
 import { publishEvent } from '../../../lib/events';
+import { mockApiEvent } from '../../../lib/__tests__/testHelpers';
 import { handler } from '../register';
 
 vi.mock('../../../lib/auth', () => ({
@@ -40,8 +40,8 @@ const scheduledWorkshop = {
   updatedAt: '2026-08-01T12:00:00.000Z',
 };
 
-function eventWithWorkshopId(id = 'workshop-1'): APIGatewayProxyEvent {
-  return {
+function eventWithWorkshopId(id = 'workshop-1') {
+  return mockApiEvent({
     pathParameters: { id },
     requestContext: {
       authorizer: {
@@ -49,8 +49,8 @@ function eventWithWorkshopId(id = 'workshop-1'): APIGatewayProxyEvent {
           sub: 'student-1',
         },
       },
-    },
-  } as APIGatewayProxyEvent;
+    } as any,
+  });
 }
 
 describe('register workshop handler', () => {
