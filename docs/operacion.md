@@ -9,20 +9,14 @@ La observabilidad real se define en `ObservabilityStack`:
 - Alarmas por Lambda: errores mayores a 3 en 5 minutos y duracion p99 mayor a 5 segundos.
 - Alarma agregada de throttles Lambda.
 - Graficas de API TPS, latencia P95, errores 4XX/5XX, capacidad consumida de DynamoDB y duracion promedio Lambda.
-- Alarmas dedicadas de CodeDeploy para rollback automatico de las Lambdas criticas `CreateWorkshopFunction` y `RegisterWorkshopFunction`.
 
 Las alarmas notifican al SNS Topic de notificaciones del stack de eventos.
 
-## Deploy Blue/Green de Lambdas Criticas
+## Deploy de Lambdas
 
-`ApiStack` publica un alias `live` para las Lambdas de escritura mas sensibles:
+API Gateway invoca directamente las Lambdas desplegadas por CDK, sin alias intermedio ni deployment group de CodeDeploy.
 
-- `CreateWorkshopFunction`
-- `RegisterWorkshopFunction`
-
-API Gateway invoca esos alias, no la version `$LATEST`. CodeDeploy despliega nuevas versiones con `CANARY_10PERCENT_5MINUTES`: 10% del trafico va a la version nueva durante 5 minutos y, si las alarmas no entran en estado ALARM, luego avanza al 100%.
-
-Si una alarma de errores de CodeDeploy se dispara durante el canary, CodeDeploy revierte automaticamente el alias `live` a la version anterior.
+Se evaluo blue/green deployment con CodeDeploy, pero la cuenta de AWS (free tier) restringe el acceso a este servicio para cuentas nuevas sin verificacion adicional - se documenta como decision consciente de alcance, no como una omision tecnica.
 
 ## Throttling de API Gateway
 

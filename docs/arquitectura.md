@@ -52,7 +52,7 @@ Los eventos de dominio reales son `WORKSHOP_CREATED` y `STUDENT_REGISTERED`, def
 | DynamoDB single-table | Implementado en `DataStack` y `backend/src/lib/dynamo.ts` | Modela talleres e inscripciones con PK/SK y permite listados por fecha/categoria con GSI1/GSI2. |
 | API Gateway REST | Implementado | Expone `/healthz`, `/workshops`, `/workshops/{id}` y `/workshops/{id}/register`; aplica throttling global de 50 rps/100 burst y throttling especifico de 10 rps/20 burst en inscripciones. |
 | Cognito JWT Authorizer | Implementado para rutas protegidas | API Gateway valida JWT antes de Lambdas de escritura. Los permisos admin se verifican leyendo `cognito:groups`. |
-| CodeDeploy blue/green para Lambdas criticas | Implementado | `POST /workshops` y `POST /workshops/{id}/register` invocan alias `live` y despliegan con canary 10% por 5 minutos con rollback por alarmas de errores. |
+| CodeDeploy blue/green para Lambdas criticas | Evaluado, no implementado | Se evaluo blue/green deployment con CodeDeploy, pero la cuenta de AWS (free tier) restringe el acceso a este servicio para cuentas nuevas sin verificacion adicional - se documenta como decision consciente de alcance, no como una omision tecnica. |
 | EventBridge + SNS + DLQ | Implementado | Desacopla notificaciones del flujo HTTP y permite reintentos/DLQ. |
 | Frontend por CloudFront + S3 privado | Implementado | Distribucion HTTPS, SPA fallback e invalidacion despues de `BucketDeployment`. |
 | WAF en CloudFront | Implementado | Regla por tasa, AWSManagedRulesCommonRuleSet y AWSManagedRulesSQLiRuleSet. |

@@ -109,15 +109,11 @@ Este orden es necesario por dos razones:
 
 `deploy-prod.yml` sigue el mismo patron con stacks `cookinglab-prod-*` y `STAGE=prod`.
 
-## Despliegue Canary de Lambdas
+## Despliegue de Lambdas
 
-`CreateWorkshopFunction` y `RegisterWorkshopFunction` se publican mediante alias `live` y CodeDeploy. API Gateway apunta al alias, por lo que una nueva version se mueve con estrategia canary:
+Las Lambdas se despliegan directamente con CDK y API Gateway invoca cada funcion sin alias intermedio.
 
-```text
-10% de trafico por 5 minutos -> 100% si no hay alarmas
-```
-
-Si la alarma de errores dedicada entra en estado ALARM durante el canary, CodeDeploy revierte el alias `live` a la version anterior. Las demas Lambdas siguen el despliegue directo normal de CDK.
+Se evaluo blue/green deployment con CodeDeploy, pero la cuenta de AWS (free tier) restringe el acceso a este servicio para cuentas nuevas sin verificacion adicional - se documenta como decision consciente de alcance, no como una omision tecnica.
 
 ## Problemas Comunes Durante el Primer Despliegue
 
