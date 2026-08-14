@@ -1,22 +1,13 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
-  AlertCircle,
-  Award,
-  BookOpen,
-  Calendar,
-  CheckCircle2,
-  ChefHat,
-  Clock,
   Edit2,
   GraduationCap,
   LayoutDashboard,
-  PlusCircle,
   RefreshCw,
   Sparkles,
   Trash2,
   Users,
-  UtensilsCrossed,
 } from 'lucide-react';
 import { Workshop, WorkshopInput } from '@shared/types';
 import { createWorkshop, deleteWorkshop, listWorkshops, updateWorkshop } from '../api/client';

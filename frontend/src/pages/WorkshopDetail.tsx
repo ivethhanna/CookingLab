@@ -13,7 +13,6 @@ import {
   Sparkles,
   Tag,
   Users,
-  UtensilsCrossed,
 } from 'lucide-react';
 import { Workshop } from '@shared/types';
 import { getWorkshop, registerToWorkshop } from '../api/client';

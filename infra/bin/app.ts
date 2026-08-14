@@ -45,7 +45,7 @@ const apiStack = new ApiStack(app, `${prefix}-api`, {
 });
 
 // 5. Capa de Frontend y CDN (S3 + CloudFront + WAF)
-const frontStack = new FrontStack(app, `${prefix}-front`, {
+new FrontStack(app, `${prefix}-front`, {
   envConfig,
   env,
   stage: envConfig.stage,
@@ -54,7 +54,7 @@ const frontStack = new FrontStack(app, `${prefix}-front`, {
 });
 
 // 6. Capa de Observabilidad (CloudWatch + X-Ray)
-const observabilityStack = new ObservabilityStack(app, `${prefix}-observability`, {
+new ObservabilityStack(app, `${prefix}-observability`, {
   envConfig,
   env,
   api: apiStack.api,
@@ -64,7 +64,7 @@ const observabilityStack = new ObservabilityStack(app, `${prefix}-observability`
 });
 
 // 7. Capa de CI/CD (GitHub Actions OIDC)
-const cicdStack = new CicdStack(app, `${prefix}-cicd`, {
+new CicdStack(app, `${prefix}-cicd`, {
   envConfig,
   env,
   stage: envConfig.stage,

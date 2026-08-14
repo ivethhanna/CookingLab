@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom';
-import { Award, GraduationCap, LayoutDashboard, LogIn, LogOut, UtensilsCrossed } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
 export function Navbar() {
@@ -44,7 +44,7 @@ export function Navbar() {
             </button>
           </div>
         ) : (
-          <NavLink className={({ isActive }) => `btn-primary`} to="/login" style={{ padding: '0.5rem 1.1rem', fontSize: '0.88rem' }}>
+          <NavLink className="btn-primary" to="/login" style={{ padding: '0.5rem 1.1rem', fontSize: '0.88rem' }}>
             <LogIn size={16} />
             <span>Acceso</span>
           </NavLink>
