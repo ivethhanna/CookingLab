@@ -9,8 +9,29 @@ La observabilidad real se define en `ObservabilityStack`:
 - Alarmas por Lambda: errores mayores a 3 en 5 minutos y duracion p99 mayor a 5 segundos.
 - Alarma agregada de throttles Lambda.
 - Graficas de API TPS, latencia P95, errores 4XX/5XX, capacidad consumida de DynamoDB y duracion promedio Lambda.
+- Alarmas dedicadas de CodeDeploy para rollback automatico de las Lambdas criticas `CreateWorkshopFunction` y `RegisterWorkshopFunction`.
 
 Las alarmas notifican al SNS Topic de notificaciones del stack de eventos.
+
+## Deploy Blue/Green de Lambdas Criticas
+
+`ApiStack` publica un alias `live` para las Lambdas de escritura mas sensibles:
+
+- `CreateWorkshopFunction`
+- `RegisterWorkshopFunction`
+
+API Gateway invoca esos alias, no la version `$LATEST`. CodeDeploy despliega nuevas versiones con `CANARY_10PERCENT_5MINUTES`: 10% del trafico va a la version nueva durante 5 minutos y, si las alarmas no entran en estado ALARM, luego avanza al 100%.
+
+Si una alarma de errores de CodeDeploy se dispara durante el canary, CodeDeploy revierte automaticamente el alias `live` a la version anterior.
+
+## Throttling de API Gateway
+
+El stage de API Gateway aplica limites conservadores para bajo trafico academico:
+
+- Global: 50 requests por segundo y burst de 100.
+- `POST /workshops/{id}/register`: 10 requests por segundo y burst de 20.
+
+Cuando se exceden esos limites, API Gateway responde `429 Too Many Requests` antes de invocar Lambda. Si aparece un volumen sostenido de 429 en logs o metricas, revisar si es trafico legitimo antes de subir limites.
 
 ## DLQ de Eventos
 

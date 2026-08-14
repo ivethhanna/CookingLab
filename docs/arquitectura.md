@@ -50,13 +50,15 @@ Los eventos de dominio reales son `WORKSHOP_CREATED` y `STUDENT_REGISTERED`, def
 | Decision | Estado real | Justificacion |
 | --- | --- | --- |
 | DynamoDB single-table | Implementado en `DataStack` y `backend/src/lib/dynamo.ts` | Modela talleres e inscripciones con PK/SK y permite listados por fecha/categoria con GSI1/GSI2. |
-| API Gateway REST | Implementado | Expone `/healthz`, `/workshops`, `/workshops/{id}` y `/workshops/{id}/register`. |
+| API Gateway REST | Implementado | Expone `/healthz`, `/workshops`, `/workshops/{id}` y `/workshops/{id}/register`; aplica throttling global de 50 rps/100 burst y throttling especifico de 10 rps/20 burst en inscripciones. |
 | Cognito JWT Authorizer | Implementado para rutas protegidas | API Gateway valida JWT antes de Lambdas de escritura. Los permisos admin se verifican leyendo `cognito:groups`. |
+| CodeDeploy blue/green para Lambdas criticas | Implementado | `POST /workshops` y `POST /workshops/{id}/register` invocan alias `live` y despliegan con canary 10% por 5 minutos con rollback por alarmas de errores. |
 | EventBridge + SNS + DLQ | Implementado | Desacopla notificaciones del flujo HTTP y permite reintentos/DLQ. |
 | Frontend por CloudFront + S3 privado | Implementado | Distribucion HTTPS, SPA fallback e invalidacion despues de `BucketDeployment`. |
 | WAF en CloudFront | Implementado | Regla por tasa, AWSManagedRulesCommonRuleSet y AWSManagedRulesSQLiRuleSet. |
 | Observabilidad CloudWatch | Implementado | Dashboard, alarmas API 5XX, errores/duracion/throttles Lambda y capacidad DynamoDB. |
 | CI/CD con OIDC | Implementado | GitHub Actions asume un rol IAM sin guardar access keys en GitHub. |
+| Tests backend | Implementado | Vitest cubre handlers criticos de creacion e inscripcion y contract tests del schema de talleres. |
 
 ## CI/CD
 

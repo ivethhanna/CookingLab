@@ -7,7 +7,7 @@ Monorepo con la estructura base (**scaffolding**) para el proyecto académico **
 ## 🚀 Tecnologías Utilizadas
 
 - **IaC (Infraestructura como Código)**: AWS CDK v2 en TypeScript
-- **Backend**: Node.js 20, TypeScript, AWS SDK v3, Zod (Validación RFC 7807)
+- **Backend**: Node.js 22, TypeScript, AWS SDK v3, Zod (Validación RFC 7807), Vitest
 - **Frontend**: React, Vite, TypeScript
 - **Gestor de Paquetes**: pnpm Workspaces (Monorepo con 3 paquetes)
 
@@ -74,10 +74,10 @@ pnpm build
 # 3. Iniciar el entorno de desarrollo local del Frontend
 pnpm dev:front
 
-# 4. Sintetizar plantillas CloudFormation con AWS CDK
+# 5. Sintetizar plantillas CloudFormation con AWS CDK
 pnpm cdk:synth
 
-# 5. Desplegar toda la infraestructura en AWS
+# 6. Desplegar toda la infraestructura en AWS
 pnpm cdk:deploy
 ```
 

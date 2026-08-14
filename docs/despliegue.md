@@ -72,7 +72,7 @@ Fuente: GitHub Docs, "Deployments and environments" y "Reviewing deployments".
 
 1. Crear rama feature desde `dev`.
 2. Abrir PR hacia `dev`.
-3. `ci.yml` ejecuta lint, builds y `cdk synth`.
+3. `ci.yml` ejecuta lint, tests backend con Vitest, builds y `cdk synth`.
 4. Hacer merge a `dev`.
 5. `deploy-dev.yml` despliega automaticamente dev.
 6. Crear tag `v*` para produccion.
@@ -108,6 +108,16 @@ Este orden es necesario por dos razones:
 - Vite inyecta variables `VITE_*` en tiempo de build; por eso el build real del frontend ocurre despues de desplegar AuthStack y ApiStack, cuando ya existen los outputs de Cognito y API Gateway.
 
 `deploy-prod.yml` sigue el mismo patron con stacks `cookinglab-prod-*` y `STAGE=prod`.
+
+## Despliegue Canary de Lambdas
+
+`CreateWorkshopFunction` y `RegisterWorkshopFunction` se publican mediante alias `live` y CodeDeploy. API Gateway apunta al alias, por lo que una nueva version se mueve con estrategia canary:
+
+```text
+10% de trafico por 5 minutos -> 100% si no hay alarmas
+```
+
+Si la alarma de errores dedicada entra en estado ALARM durante el canary, CodeDeploy revierte el alias `live` a la version anterior. Las demas Lambdas siguen el despliegue directo normal de CDK.
 
 ## Problemas Comunes Durante el Primer Despliegue
 

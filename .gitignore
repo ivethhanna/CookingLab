@@ -10,6 +10,12 @@ dist/
 build/
 .out/
 cdk.out/
+*.tsbuildinfo
+
+# Test outputs
+coverage/
+.vitest/
+.nyc_output/
 
 # Environment variables
 .env
