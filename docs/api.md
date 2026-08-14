@@ -1,7 +1,5 @@
 # API - CookingLab
 
-La API real esta implementada en `backend/src/handlers` y expuesta por `ApiStack` como API Gateway REST. Las rutas publicas no usan authorizer; las rutas protegidas usan Cognito JWT y, para administracion, validan el grupo `admin` en el claim `cognito:groups`.
-
 ```yaml
 openapi: 3.0.3
 info:
@@ -426,10 +424,94 @@ components:
 | DELETE | `/workshops/{id}` | Cognito JWT + admin | `handlers/workshops/remove.ts` |
 | POST | `/workshops/{id}/register` | Cognito JWT | `handlers/registrations/register.ts` |
 
-## Notas de implementacion
+## Ejemplos
 
-- Los errores de backend usan `application/problem+json` y tipos `https://cookinglab.io/errors/...`.
-- `POST /workshops` publica `WORKSHOP_CREATED`.
-- `POST /workshops/{id}/register` publica `STUDENT_REGISTERED`, valida cupo con `registeredCount` y retorna `409` si la inscripcion ya existe.
-- `DELETE /workshops/{id}` es soft delete: actualiza `status` a `cancelled`.
-- `finished` representa talleres terminados; el frontend lo muestra como "Terminado" y bloquea nuevas inscripciones.
+Crear taller:
+
+```http
+POST /workshops HTTP/1.1
+Authorization: Bearer <jwt-admin>
+Content-Type: application/json
+
+{
+  "name": "Masterclass de Pasta Fresca",
+  "description": "Aprende tecnicas practicas para preparar pasta fresca artesanal.",
+  "category": "Cocina Italiana",
+  "location": "Sede Poblado",
+  "startAt": "2026-09-15T14:00:00.000Z",
+  "endAt": "2026-09-15T17:00:00.000Z",
+  "status": "scheduled",
+  "capacity": 12,
+  "instructor": "Chef Marco Rossi",
+  "level": "intermedio",
+  "modality": "presencial",
+  "certificateOffered": true,
+  "ingredientsIncluded": true,
+  "price": 180000
+}
+```
+
+Respuesta:
+
+```json
+{
+  "id": "workshop-123",
+  "name": "Masterclass de Pasta Fresca",
+  "description": "Aprende tecnicas practicas para preparar pasta fresca artesanal.",
+  "category": "Cocina Italiana",
+  "location": "Sede Poblado",
+  "startAt": "2026-09-15T14:00:00.000Z",
+  "endAt": "2026-09-15T17:00:00.000Z",
+  "status": "scheduled",
+  "capacity": 12,
+  "registeredCount": 0,
+  "instructor": "Chef Marco Rossi",
+  "level": "intermedio",
+  "modality": "presencial",
+  "certificateOffered": true,
+  "ingredientsIncluded": true,
+  "price": 180000,
+  "createdAt": "2026-08-13T10:00:00.000Z",
+  "updatedAt": "2026-08-13T10:00:00.000Z"
+}
+```
+
+Listar por categoria:
+
+```http
+GET /workshops?category=Cocina%20Italiana HTTP/1.1
+```
+
+Inscribirse a un taller:
+
+```http
+POST /workshops/workshop-123/register HTTP/1.1
+Authorization: Bearer <jwt-student>
+```
+
+Respuesta:
+
+```json
+{
+  "workshopId": "workshop-123",
+  "userId": "student-123",
+  "registeredAt": "2026-08-13T10:05:00.000Z"
+}
+```
+
+Error de validacion:
+
+```json
+{
+  "type": "https://cookinglab.io/errors/validation",
+  "title": "Validation Error",
+  "status": 400,
+  "detail": "Request body is invalid.",
+  "invalidParams": [
+    {
+      "name": "name",
+      "reason": "Required"
+    }
+  ]
+}
+```

@@ -1,52 +1,56 @@
 # Guia de Operacion y Monitoreo - CookingLab
 
-## Observabilidad
+## Alarmas
 
-La observabilidad real se define en `ObservabilityStack`:
+| Alarma | Umbral | Causa probable | Accion inicial |
+| --- | --- | --- | --- |
+| `cookinglab-api-5xx-errors-<stage>` | Mas de 5 errores 5XX en 5 minutos | Excepcion en Lambda, error de integracion API Gateway o dependencia AWS fallando | Revisar logs de API Gateway/Lambda y ultimo despliegue. |
+| `<LambdaFunction>-errors-<stage>` | Mas de 3 errores en 5 minutos | Bug en handler, permisos IAM faltantes, item DynamoDB inesperado o evento mal formado | Abrir CloudWatch Logs de la funcion y correlacionar con request/evento. |
+| `<LambdaFunction>-p99-duration-<stage>` | p99 mayor a 5 segundos en 5 minutos | Query lenta, retries AWS SDK, cold starts o dependencia degradada | Revisar duracion por funcion, memoria y patrones de acceso DynamoDB. |
+| `cookinglab-lambda-throttles-<stage>` | Al menos 1 throttle Lambda en 5 minutos | Concurrencia agotada o trafico inusual | Revisar concurrencia, volumen de requests y si API Gateway esta limitando correctamente. |
 
-- Dashboard: `cookinglab-overview-<stage>`.
-- Alarma API 5XX: `cookinglab-api-5xx-errors-<stage>`, umbral mayor a 5 errores 5XX en 5 minutos.
-- Alarmas por Lambda: errores mayores a 3 en 5 minutos y duracion p99 mayor a 5 segundos.
-- Alarma agregada de throttles Lambda.
-- Graficas de API TPS, latencia P95, errores 4XX/5XX, capacidad consumida de DynamoDB y duracion promedio Lambda.
+Las alarmas notifican al SNS Topic del stack de eventos. El dashboard principal es `cookinglab-overview-<stage>`.
 
-Las alarmas notifican al SNS Topic de notificaciones del stack de eventos.
+## Runbook: DynamoDB Backup y Restore
 
-## Deploy de Lambdas
+En `prod`, DynamoDB tiene point-in-time recovery habilitado. En `dev`, la tabla usa `RemovalPolicy.DESTROY` y PITR esta deshabilitado para reducir costos.
 
-API Gateway invoca directamente las Lambdas desplegadas por CDK, sin alias intermedio ni deployment group de CodeDeploy.
+Crear backup on-demand:
 
-Se evaluo blue/green deployment con CodeDeploy, pero la cuenta de AWS (free tier) restringe el acceso a este servicio para cuentas nuevas sin verificacion adicional - se documenta como decision consciente de alcance, no como una omision tecnica.
-
-## Throttling de API Gateway
-
-El stage de API Gateway aplica limites conservadores para bajo trafico academico:
-
-- Global: 50 requests por segundo y burst de 100.
-- `POST /workshops/{id}/register`: 10 requests por segundo y burst de 20.
-
-Cuando se exceden esos limites, API Gateway responde `429 Too Many Requests` antes de invocar Lambda. Si aparece un volumen sostenido de 429 en logs o metricas, revisar si es trafico legitimo antes de subir limites.
-
-## DLQ de Eventos
-
-`EventsStack` crea una SQS DLQ:
-
-```text
-cookinglab-notifications-dlq-<stage>
+```bash
+aws dynamodb create-backup \
+  --table-name cookinglab-prod-workshops \
+  --backup-name cookinglab-prod-workshops-YYYYMMDD
 ```
 
-Para revisar fallos:
+Listar backups:
 
-1. Abrir la consola SQS.
-2. Seleccionar `cookinglab-notifications-dlq-dev` o el stage correspondiente.
-3. Ejecutar polling de mensajes.
-4. Revisar el evento fallido y los logs de la Lambda de notificacion asociada.
+```bash
+aws dynamodb list-backups --table-name cookinglab-prod-workshops
+```
 
-## Cognito y Usuarios
+Restaurar desde backup on-demand hacia una tabla nueva:
 
-El User Pool tiene grupos `admin` y `student`. Las rutas admin validan el grupo `admin` leyendo el claim `cognito:groups`.
+```bash
+aws dynamodb restore-table-from-backup \
+  --target-table-name cookinglab-prod-workshops-restore \
+  --backup-arn BACKUP_ARN
+```
 
-Para crear usuarios de prueba desde CLI:
+Restaurar con point-in-time recovery hacia una tabla nueva:
+
+```bash
+aws dynamodb restore-table-to-point-in-time \
+  --source-table-name cookinglab-prod-workshops \
+  --target-table-name cookinglab-prod-workshops-restore \
+  --restore-date-time 2026-08-13T12:00:00Z
+```
+
+Despues de restaurar, validar datos e indices antes de redirigir trafico o copiar registros.
+
+## Runbook: Usuarios de Prueba Cognito
+
+Crear usuario:
 
 ```bash
 aws cognito-idp admin-create-user \
@@ -55,7 +59,7 @@ aws cognito-idp admin-create-user \
   --user-attributes Name=email,Value=evaluador@example.com Name=name,Value=Evaluador
 ```
 
-Los usuarios creados manualmente suelen quedar en `FORCE_CHANGE_PASSWORD`. El frontend soporta ese flujo con el formulario de nueva contrasena. Si se van a compartir credenciales con un tercero, por ejemplo un evaluador, se puede establecer una contrasena permanente:
+Asignar contrasena permanente para cuentas temporales:
 
 ```bash
 aws cognito-idp admin-set-user-password \
@@ -65,29 +69,64 @@ aws cognito-idp admin-set-user-password \
   --permanent
 ```
 
-Rotar o eliminar esa cuenta antes de la entrega final si ya no se necesita.
+Agregar usuario al grupo admin:
 
-## Backup y Restore
-
-En `prod`, la tabla DynamoDB habilita point-in-time recovery. En `dev`, la tabla usa `RemovalPolicy.DESTROY` y no habilita PITR para reducir costos.
-
-Para restauraciones en prod, usar Point-in-time recovery desde la consola DynamoDB y validar la tabla restaurada antes de redirigir trafico o copiar datos.
-
-## Deploy y Smoke Test
-
-El deploy normal ocurre por GitHub Actions. Dev se activa por push a `dev`; prod por tags `v*` y environment `production`.
-
-El smoke test usa el output `ApiUrl` del ApiStack y valida:
-
-```text
-GET /healthz
+```bash
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id USER_POOL_ID \
+  --username evaluador@example.com \
+  --group-name admin
 ```
 
-La respuesta esperada es HTTP 200 con un JSON que incluye `status: "ok"` y `timestamp`.
+Rotar o eliminar cuentas compartidas despues de la evaluacion.
 
-## Troubleshooting
+## Runbook: DLQ de Eventos
 
-- `CannotFindAsset` para `frontend/dist`: verificar que el workflow cree el placeholder antes del primer `cdk deploy`.
-- Frontend con Cognito "not configured": verificar que `frontend/.env.production` se genere antes de `pnpm --filter frontend run build`.
-- `Cannot find name 'process'` en infra: revisar `infra/tsconfig.json`, que debe incluir `types: ["node"]`.
-- Login de usuario manual exige nueva contrasena: completar el challenge en la UI o usar `admin-set-user-password --permanent` para cuentas temporales de prueba.
+`EventsStack` crea `cookinglab-notifications-dlq-<stage>`.
+
+1. Abrir SQS y seleccionar la DLQ del stage.
+2. Hacer polling de mensajes.
+3. Revisar el payload fallido y la regla de EventBridge asociada.
+4. Revisar logs de la Lambda de notificacion.
+5. Reprocesar manualmente solo despues de confirmar que la causa fue corregida.
+
+## Runbook: Throttling API Gateway
+
+El stage aplica 50 rps/100 burst global y `POST /workshops/{id}/register` aplica 10 rps/20 burst.
+
+Si aparecen muchos `429 Too Many Requests`:
+
+1. Confirmar si el trafico es legitimo o automatizado.
+2. Revisar CloudWatch Metrics de API Gateway por metodo.
+3. Mantener el limite bajo para `/register` si hay abuso.
+4. Subir limites solo si el trafico legitimo lo requiere.
+
+## Troubleshooting Operativo
+
+### pnpm version conflict
+
+Usar la version fijada por `packageManager` en `package.json`. En GitHub Actions, `pnpm/action-setup` toma esa version antes de `pnpm install --frozen-lockfile`.
+
+### Backticks en bash
+
+En scripts de GitHub Actions, evitar envolver comandos o rutas con backticks Markdown. Los bloques `run` deben contener comandos shell reales.
+
+### CannotFindAsset para `frontend/dist`
+
+El deploy crea un placeholder minimo en `frontend/dist/index.html` antes del primer `cdk deploy` porque `FrontStack` empaqueta ese directorio durante la sintesis.
+
+### Orden de Cognito y build frontend
+
+El frontend necesita `VITE_API_URL`, `VITE_USER_POOL_ID` y `VITE_USER_POOL_CLIENT_ID` en tiempo de build. Por eso el pipeline despliega primero Auth/API, escribe `frontend/.env.production`, construye frontend y luego despliega `FrontStack`.
+
+### newPasswordRequired en Cognito
+
+Los usuarios creados manualmente pueden quedar en `FORCE_CHANGE_PASSWORD`. Completar el challenge en la UI o usar `admin-set-user-password --permanent` para cuentas temporales.
+
+### CodeDeploy subscription error
+
+La implementacion actual no usa CodeDeploy, alias Lambda ni deployment groups. Si vuelve a aparecer un error de suscripcion/permisos de CodeDeploy, revisar que no se hayan reintroducido recursos `AWS::CodeDeploy::*` o `AWS::Lambda::Alias` en `infra/cdk.out`.
+
+### Artefactos compilados junto a TypeScript
+
+No deben existir `.js` ni `.d.ts` generados junto a los `.ts` fuente en `infra/bin`, `infra/lib` o `backend/src`. Las reglas de `.gitignore` locales evitan que esos artefactos se versionen.
