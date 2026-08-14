@@ -26,9 +26,3 @@ Para trafico bajo, el costo esperado de dev esta dominado por WAF. Sin WAF, el e
 - Reducir volumen y retencion de logs de CloudWatch si el trafico de pruebas genera muchos logs.
 - Mantener DynamoDB en modo on-demand para evitar capacidad aprovisionada ociosa.
 - Eliminar distribuciones CloudFront, buckets y tablas dev que ya no se usen.
-
-## Gobernanza aplicada
-
-El codigo actual aplica nombres por stage (`cookinglab-dev-*`, `cookinglab-prod-*`) y usa `RemovalPolicy.DESTROY` en dev para recursos persistentes como S3, DynamoDB y Cognito. En prod, DynamoDB y S3 usan `RETAIN`.
-
-No hay tagging automatico `Project=CookingLab` / `Env=dev|prod` ni AWS Budget definidos en CDK en el estado actual del repositorio. Si el presupuesto con alertas por email ya existe en la cuenta, esta configurado fuera del codigo y no se documentan montos reales de la cuenta en este repositorio. Como mejora recomendada, agregar tags globales en `infra/bin/app.ts` con `cdk.Tags.of(app).add(...)` y definir o documentar el AWS Budget operativo.

@@ -1,7 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
-import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
@@ -85,17 +83,6 @@ export class ApiStack extends cdk.Stack {
       EVENT_BUS_NAME: props.eventBusName,
     });
 
-    const createWorkshopAlias = this.createLiveAliasWithCanaryDeployment(
-      'CreateWorkshop',
-      createWorkshopFunction,
-      props.stage
-    );
-    const registerWorkshopAlias = this.createLiveAliasWithCanaryDeployment(
-      'RegisterWorkshop',
-      registerWorkshopFunction,
-      props.stage
-    );
-
     props.table.grantReadData(listWorkshopsFunction);
     props.table.grantReadData(getWorkshopByIdFunction);
     props.table.grantReadWriteData(createWorkshopFunction);
@@ -115,7 +102,7 @@ export class ApiStack extends cdk.Stack {
     workshopsResource.addMethod('GET', new apigateway.LambdaIntegration(listWorkshopsFunction));
 
     // POST /workshops (requiere auth Admin)
-    workshopsResource.addMethod('POST', new apigateway.LambdaIntegration(createWorkshopAlias), {
+    workshopsResource.addMethod('POST', new apigateway.LambdaIntegration(createWorkshopFunction), {
       authorizer: this.authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
@@ -137,7 +124,7 @@ export class ApiStack extends cdk.Stack {
     // Registrations endpoint
     const registrationsResource = singleWorkshopResource.addResource('register');
     // POST /workshops/{id}/register
-    registrationsResource.addMethod('POST', new apigateway.LambdaIntegration(registerWorkshopAlias), {
+    registrationsResource.addMethod('POST', new apigateway.LambdaIntegration(registerWorkshopFunction), {
       authorizer: this.authorizer,
       authorizationType: apigateway.AuthorizationType.COGNITO,
     });
@@ -155,41 +142,5 @@ export class ApiStack extends cdk.Stack {
     for (const fn of this.functions) {
       fn.addEnvironment('ALLOWED_ORIGIN', origin);
     }
-  }
-
-  private createLiveAliasWithCanaryDeployment(
-    idPrefix: string,
-    fn: lambda.Function,
-    stage: string
-  ): lambda.Alias {
-    const alias = new lambda.Alias(this, `${idPrefix}LiveAlias`, {
-      aliasName: 'live',
-      version: fn.currentVersion,
-    });
-
-    const errorAlarm = new cloudwatch.Alarm(this, `${idPrefix}CodeDeployErrorsAlarm`, {
-      alarmName: resourceName(`${idPrefix}-codedeploy-errors`, stage),
-      metric: fn.metricErrors({
-        period: cdk.Duration.minutes(5),
-        statistic: 'Sum',
-      }),
-      threshold: 1,
-      evaluationPeriods: 1,
-      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
-      alarmDescription: `${idPrefix} CodeDeploy rollback alarm for Lambda errors.`,
-    });
-
-    new codedeploy.LambdaDeploymentGroup(this, `${idPrefix}DeploymentGroup`, {
-      alias,
-      deploymentConfig: codedeploy.LambdaDeploymentConfig.CANARY_10PERCENT_5MINUTES,
-      alarms: [errorAlarm],
-      autoRollback: {
-        deploymentInAlarm: true,
-        failedDeployment: true,
-        stoppedDeployment: true,
-      },
-    });
-
-    return alias;
   }
 }
