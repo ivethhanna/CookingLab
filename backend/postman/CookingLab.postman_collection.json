@@ -1,0 +1,386 @@
+{
+  "info": {
+    "_postman_id": "7a19cf5f-fda8-4bda-a73d-2d3df5ef88d4",
+    "name": "CookingLab",
+    "description": "Coleccion de Postman para probar la API de CookingLab.\n\nConfigura la variable de coleccion `baseUrl` con la URL del API Gateway desplegado, por ejemplo `https://zzlxt51os2.execute-api.us-east-1.amazonaws.com/prod/`.\n\nPara obtener `idToken`, inicia sesion desde el frontend desplegado, abre DevTools del navegador, ve a Application/Storage y busca donde el frontend guarda el idToken en memoria o almacenamiento. Si hace falta, agrega temporalmente un `console.log` en el frontend para imprimirlo. Luego pega el token en la variable de coleccion `idToken`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idToken",
+      "value": "eyJraWQiOiJOUUxkelp0YnpLMXhqV1h4bnRXLzNrbGRObDJyRkRJU2lGU2pXUU1qQ0lRPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiI2NDE4ZjQxOC04MDYxLTcwZjgtMmFhYS1kYTg1NzI1OThlODEiLCJjb2duaXRvOmdyb3VwcyI6WyJhZG1pbiJdLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiaXNzIjoiaHR0cHM6Ly9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbS91cy1lYXN0LTFfZkMzelRXT0p2IiwiY29nbml0bzp1c2VybmFtZSI6IjY0MThmNDE4LTgwNjEtNzBmOC0yYWFhLWRhODU3MjU5OGU4MSIsIm9yaWdpbl9qdGkiOiI0ZDgyMDliOS1jMDE1LTRmMWEtYmI4MC05NmI3MmVmZmMwZmYiLCJhdWQiOiIzNjgyNzRzZWZ0cXAxaTBoZ21jNDltdWwyayIsImV2ZW50X2lkIjoiMWMwOGYxNjEtMzJkOC00ZTZhLWE2YmUtOTBmOWIyMDBmZjQ5IiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3ODY3Njg0MDgsImV4cCI6MTc4Njc3MjAwOCwiaWF0IjoxNzg2NzY4NDA4LCJqdGkiOiI3OWNkZmM1Yy00ZGY0LTRhYWUtYjlhOC05ZjI0YTY1Zjg4Y2QiLCJlbWFpbCI6Imdlb3JnaW5hLmhhbm5hQHVpcC5lZHUucGEifQ.H8VThQOZYezlwwQYAHC7fVQ8FbkyJfuUi3qZCgHHsJvFL6O9xvh7jgRBss6xeBfoheYXZII6DOs6ZkSlj4H4-eEcVPQ-051Ml2Xq1nt3wbQtjrbTXiqpVhsY7Q-f2HOuw-xHnkzzS5ShzvzUi3xjFAFpDzbqa9v11Bs3SxDBu1G1ralMr03zlIGd9RSH2OMzy5ASCGm7WjigUfLDk102VBxl_alVXN5ExgN6a_v3wljnqw5pLqJzvqCJWgrqGWhMlqeKPCdwyNTb9LLMbg0o2-_I1v9OXDLFKr5cbbyZ6hhB0XiBjbSXUPYmwQPqKF-N794L212LlMX1Fzx0Ae9rKw",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "List workshops",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/workshops",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshops"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Numero maximo de workshops a devolver.",
+                  "disabled": true
+                },
+                {
+                  "key": "nextToken",
+                  "value": "",
+                  "description": "Token de paginacion devuelto por una respuesta anterior.",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "baking",
+                  "description": "Categoria para filtrar workshops.",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get workshop by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/workshops/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshops",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "workshop-demo-001",
+                  "description": "ID del workshop."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/healthz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin / Autenticado",
+      "item": [
+        {
+          "name": "Create workshop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{idToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pasta fresca italiana\",\n  \"description\": \"Aprende a preparar masa de pasta fresca, cortes clasicos y una salsa base para servir al final del taller.\",\n  \"category\": \"Cocina Italiana\",\n  \"location\": \"CookingLab Studio, Aula 1\",\n  \"instructor\": \"Chef Daniela Rossi\",\n  \"level\": \"basico\",\n  \"modality\": \"presencial\",\n  \"certificateOffered\": true,\n  \"ingredientsIncluded\": true,\n  \"price\": 55,\n  \"startAt\": \"2026-09-12T15:00:00Z\",\n  \"endAt\": \"2026-09-12T18:00:00Z\",\n  \"status\": \"scheduled\",\n  \"capacity\": 14\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/workshops",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshops"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Seed workshops",
+          "item": [
+            {
+              "name": "Create - Pasta fresca italiana",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{idToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Pasta fresca italiana\",\n  \"description\": \"Aprende a preparar masa de pasta fresca, cortes clasicos y una salsa base para servir al final del taller.\",\n  \"category\": \"Cocina Italiana\",\n  \"location\": \"CookingLab Studio, Aula 1\",\n  \"instructor\": \"Chef Daniela Rossi\",\n  \"level\": \"basico\",\n  \"modality\": \"presencial\",\n  \"certificateOffered\": true,\n  \"ingredientsIncluded\": true,\n  \"price\": 55,\n  \"startAt\": \"2026-09-12T15:00:00Z\",\n  \"endAt\": \"2026-09-12T18:00:00Z\",\n  \"status\": \"scheduled\",\n  \"capacity\": 14\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/workshops",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "workshops"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create - Pan artesanal de masa madre",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{idToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Pan artesanal de masa madre\",\n  \"description\": \"Taller practico para entender fermentacion, formado y horneado de panes artesanales con masa madre.\",\n  \"category\": \"Panaderia\",\n  \"location\": \"CookingLab Studio, Aula 2\",\n  \"instructor\": \"Chef Martin Alvarez\",\n  \"level\": \"intermedio\",\n  \"modality\": \"presencial\",\n  \"certificateOffered\": true,\n  \"ingredientsIncluded\": true,\n  \"price\": 68,\n  \"startAt\": \"2026-09-19T14:00:00Z\",\n  \"endAt\": \"2026-09-19T18:30:00Z\",\n  \"status\": \"scheduled\",\n  \"capacity\": 12\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/workshops",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "workshops"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create - Postres saludables sin azucar refinada",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{idToken}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Postres saludables sin azucar refinada\",\n  \"description\": \"Prepara postres equilibrados usando frutas, harinas alternativas y tecnicas sencillas para cocinar en casa.\",\n  \"category\": \"Cocina Saludable\",\n  \"location\": \"Virtual - Zoom\",\n  \"instructor\": \"Chef Valentina Cruz\",\n  \"level\": \"basico\",\n  \"modality\": \"virtual\",\n  \"certificateOffered\": false,\n  \"ingredientsIncluded\": false,\n  \"price\": 35,\n  \"startAt\": \"2026-09-26T16:00:00Z\",\n  \"endAt\": \"2026-09-26T18:30:00Z\",\n  \"status\": \"scheduled\",\n  \"capacity\": 25\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/workshops",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "workshops"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Update workshop",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{idToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pan artesanal de masa madre\",\n  \"description\": \"Taller practico para entender fermentacion, formado y horneado de panes artesanales con masa madre.\",\n  \"category\": \"Panaderia\",\n  \"location\": \"CookingLab Studio, Aula 2\",\n  \"instructor\": \"Chef Martin Alvarez\",\n  \"level\": \"intermedio\",\n  \"modality\": \"presencial\",\n  \"certificateOffered\": true,\n  \"ingredientsIncluded\": true,\n  \"price\": 68,\n  \"startAt\": \"2026-09-19T14:00:00Z\",\n  \"endAt\": \"2026-09-19T18:30:00Z\",\n  \"status\": \"scheduled\",\n  \"capacity\": 12\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/workshops/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshops",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "workshop-demo-001",
+                  "description": "ID del workshop a actualizar."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete workshop",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{idToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workshops/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshops",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "workshop-demo-001",
+                  "description": "ID del workshop a eliminar."
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register for workshop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{idToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/workshops/:id/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshops",
+                ":id",
+                "register"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "workshop-demo-001",
+                  "description": "ID del workshop para registrar al usuario autenticado."
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
